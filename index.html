@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Absensi Wajah</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Satu kolom seperti buku absen bergaris; tinta biru tua, warna hanya untuk status kehadiran. */
+  --paper:#EEF1F6; --surface:#FFFFFF; --ink:#16203A; --muted:#5A6580; --line:#D5DBE6;
+  --accent:#27348B; --accent-ink:#FFFFFF; --accent-soft:#E4E7F7;
+  --hadir:#12703F; --hadir-bg:#DDF3E6; --sakit:#8A5600; --sakit-bg:#FBEBC8;
+  --izin:#0A6594; --izin-bg:#D9EEF9; --alpa:#B3261E; --alpa-bg:#FADBD8;
+  --font-display:"Bricolage Grotesque","Plus Jakarta Sans",system-ui,sans-serif;
+  --font-body:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --paper:#0F1424; --surface:#182036; --ink:#E8ECF6; --muted:#9AA5BF; --line:#2C3654;
+    --accent:#AAB5FF; --accent-ink:#10173A; --accent-soft:#232C52;
+    --hadir:#6FD9A0; --hadir-bg:#143524; --sakit:#F2C261; --sakit-bg:#3A2C0C;
+    --izin:#7CC8F2; --izin-bg:#0E2F42; --alpa:#FF9A92; --alpa-bg:#44181A;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--font-body)}
+h1,h2,p,ol,ul{margin:0}
+ol,ul{padding:0;list-style:none}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+.tengah{min-height:100vh;display:grid;place-items:center;padding:16px}
+
+.top{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
+.top .wrap{padding-top:12px;padding-bottom:12px}
+.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 22px/1.15 var(--font-display);letter-spacing:-.01em;text-wrap:balance}
+h2{font:700 16px/1.25 var(--font-body)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.chip.ok{color:var(--hadir);border-color:var(--hadir)} .chip.off{color:var(--alpa);border-color:var(--alpa)}
+
+main.wrap{padding-top:14px;padding-bottom:96px}
+.view{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.hint{color:var(--muted);font-size:13px;max-width:65ch}
+.besar{font:700 20px/1.2 var(--font-display);text-wrap:balance;overflow-wrap:anywhere}
+.datehead{font:700 19px/1.2 var(--font-display);text-wrap:balance}
+.field{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.fgroup{display:flex;flex-direction:column;gap:3px}
+input[type="text"],input[type="password"],input[type="number"],input[type="date"],input[type="time"],select,textarea{width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:16px;font-weight:500;color:var(--ink)}
+textarea{resize:vertical;line-height:1.45}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inline{display:flex;gap:8px;flex-wrap:wrap}
+.inline > input,.inline > select{flex:1 1 180px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:9px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;user-select:none}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--alpa);border-color:var(--alpa)}
+.btn.small{min-height:36px;padding:6px 12px;font-size:13px}
+.btn.lebar{width:100%}
+.btn[disabled]{opacity:.5;pointer-events:none}
+input.vh:focus-visible + label.btn{outline:2px solid var(--accent);outline-offset:2px}
+.progress{font-size:13px;font-weight:600;color:var(--accent)}
+.progress:empty{display:none}
+.progress.err{color:var(--alpa)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px}
+.check input{width:18px;height:18px;accent-color:var(--accent);flex:none}
+
+.masuk{width:min(380px,100%)}
+.listhead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.listhead span{font-size:13px;color:var(--muted)}
+.plain li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0}
+.plain li + li{border-top:1px solid var(--line)}
+.who{display:flex;flex-direction:column;min-width:0}
+.nm{font-weight:600;overflow-wrap:anywhere;line-height:1.3}
+.meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);font-size:14px}
+.tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;background:var(--paper);color:var(--muted)}
+.tag.H{background:var(--hadir-bg);color:var(--hadir)} .tag.A{background:var(--alpa-bg);color:var(--alpa)}
+
+.bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--line)}
+.bar span{display:block;height:100%}
+.bar .bH{background:var(--hadir)} .bar .bS{background:var(--sakit)} .bar .bI{background:var(--izin)} .bar .bA{background:var(--alpa)}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tile{display:flex;flex-direction:column;padding:8px;border-radius:8px;background:var(--paper);min-width:0}
+.tile b{font:700 22px/1.1 var(--font-display);font-variant-numeric:tabular-nums}
+.tile span{font-size:11px;font-weight:700;color:var(--muted)}
+.tile.tH b{color:var(--hadir)} .tile.tS b{color:var(--sakit)} .tile.tI b{color:var(--izin)} .tile.tA b{color:var(--alpa)}
+
+.ledger .row{display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:center;padding:9px 0 9px 8px;border-left:3px solid transparent}
+.ledger .row + .row{border-top:1px solid var(--line)}
+.row.is-H{border-left-color:var(--hadir)} .row.is-S{border-left-color:var(--sakit)} .row.is-I{border-left-color:var(--izin)} .row.is-A{border-left-color:var(--alpa)}
+.no{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;font-weight:600}
+.seg{display:flex;gap:4px}
+.st{width:38px;height:38px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted);font-weight:700;cursor:pointer;padding:0}
+.st-H[aria-pressed="true"]{background:var(--hadir-bg);color:var(--hadir);border-color:var(--hadir)}
+.st-S[aria-pressed="true"]{background:var(--sakit-bg);color:var(--sakit);border-color:var(--sakit)}
+.st-I[aria-pressed="true"]{background:var(--izin-bg);color:var(--izin);border-color:var(--izin)}
+.st-A[aria-pressed="true"]{background:var(--alpa-bg);color:var(--alpa);border-color:var(--alpa)}
+.srow{cursor:pointer}
+
+.qr{display:grid;place-items:center;padding:12px;background:#FFFFFF;border-radius:10px;border:1px solid var(--line)}
+.qr svg{width:min(260px,100%);height:auto;display:block}
+.rowform{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rowform label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);min-width:0}
+.rowform select{text-transform:none;letter-spacing:0}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.tablewrap:empty{display:none}
+table{border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;width:100%}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+th{font-size:11px;color:var(--muted);background:var(--paper);font-weight:700}
+th button{font:inherit;color:var(--accent);background:none;border:0;padding:2px 4px;cursor:pointer;text-decoration:underline;line-height:1.3}
+td.l,th.l{text-align:left;position:sticky;left:0;background:var(--surface);min-width:140px;max-width:190px;white-space:normal;overflow-wrap:anywhere;font-weight:600}
+th.l{background:var(--paper)}
+td.cH{color:var(--hadir);font-weight:700} td.cS{color:var(--sakit);font-weight:700} td.cI{color:var(--izin);font-weight:700} td.cA{color:var(--alpa);font-weight:700}
+td.sum{font-weight:700} td.dim{color:var(--muted)}
+tr.guru td{background:var(--accent-soft);font-weight:700}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line)}
+.tabs div{max-width:760px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tabs button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 10px;color:var(--muted);background:none;border:0;font-size:11px;font-weight:700;cursor:pointer}
+.tabs svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-current="page"]{color:var(--accent)}
+
+.pilih{max-height:52vh;overflow-y:auto}
+.pilih button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;background:none;border:0;padding:12px 4px;font-weight:600;cursor:pointer}
+.sukses{align-items:center;text-align:center;border-color:var(--hadir)}
+.centang{width:72px;height:72px;border-radius:50%;background:var(--hadir-bg);color:var(--hadir);display:grid;place-items:center}
+.centang svg{width:40px;height:40px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+
+.overlay{position:fixed;inset:0;z-index:30;background:#080B18;display:grid;place-items:center;padding:16px;overflow:auto}
+.kambox{width:min(400px,100%);display:flex;flex-direction:column;gap:12px;color:#F2F4FA}
+.kambox h2{font:700 19px/1.2 var(--font-display)}
+.kamview{position:relative;aspect-ratio:3/4;background:#000;border-radius:16px;overflow:hidden}
+.kamview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}
+.oval{position:absolute;left:18%;right:18%;top:12%;bottom:20%;border:3px solid rgba(255,255,255,.75);border-radius:50%;pointer-events:none}
+.kambox .progress{color:#C9D1FF;font-size:15px;text-align:center;min-height:44px}
+.kambox .progress.err{color:#FFB4AC}
+.kambox .progress.ok{color:#9EF0BF}
+.kamlog{list-style:none;margin:0;padding:0;max-height:132px;overflow:auto;display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+.kamlog li{padding:6px 10px;border-radius:8px;background:rgba(255,255,255,.1);overflow-wrap:anywhere}
+.kambox .btn{background:transparent;color:#F2F4FA;border-color:rgba(255,255,255,.4)}
+.kambox .btn.primary{background:#F2F4FA;color:#10173A;border-color:#F2F4FA}
+
+dialog{border:0;padding:0;background:var(--surface);color:var(--ink);width:min(520px,100%);max-width:100%;max-height:88%;margin:auto auto 0;border-radius:16px 16px 0 0}
+dialog::backdrop{background:rgba(10,14,30,.55)}
+@media (min-width:640px){dialog{margin:auto;border-radius:16px}}
+.dhead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.dhead h2{font:700 18px/1.2 var(--font-display);overflow-wrap:anywhere}
+.dbody{padding:16px;display:flex;flex-direction:column;gap:14px}
+.toast{position:fixed;left:16px;right:16px;bottom:92px;z-index:40;margin:0 auto;max-width:520px;background:var(--ink);color:var(--paper);padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;text-align:center}
+.toast:empty{display:none}
+@media (max-width:400px){ .st{width:34px;height:36px} .tile b{font-size:19px} .tile{padding:7px 6px} }
+</style>
+</head>
+<body>
+
+<div id="muat" class="tengah"><p class="hint">Memuat aplikasi</p></div>
+
+<!-- ============ MASUK PENDIDIK ============ -->
+<section id="layarMasuk" class="tengah" hidden>
+  <form id="formMasuk" class="card masuk" autocomplete="on">
+    <h1>Absensi Wajah</h1>
+    <p class="hint">Masuk sebagai pendidik untuk membuka pertemuan dan melihat rekap. Anggota tidak perlu masuk; cukup buka tautan dari pendidik.</p>
+    <div class="fgroup"><label class="field" for="inUser">Nama pengguna</label><input id="inUser" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+    <div class="fgroup"><label class="field" for="inSandi">Kata sandi</label><input id="inSandi" type="password" autocomplete="current-password"></div>
+    <p class="progress err" id="masukPesan" role="alert"></p>
+    <button class="btn primary" type="submit" id="btnMasuk">Masuk</button>
+  </form>
+</section>
+
+<!-- ============ PENDIDIK ============ -->
+<section id="layarGuru" hidden>
+  <header class="top"><div class="wrap brand"><h1>Absensi Wajah</h1><span class="chip" id="chipTgl"></span></div></header>
+  <main class="wrap">
+
+    <div class="view" id="v-dasbor">
+      <div class="card">
+        <span class="field">Pendidik</span>
+        <p class="besar" id="dNama"></p>
+        <p class="hint" id="dSekolah"></p>
+        <h2>Absen pendidik hari ini</h2>
+        <ul class="plain" id="dAbsenGuru"></ul>
+      </div>
+      <div class="card">
+        <h2>Buka pertemuan hari ini</h2>
+        <div class="inline"><select id="dKelas" aria-label="Kelas"></select><button type="button" class="btn primary" id="dBuka">Buka pertemuan</button></div>
+        <p class="hint">Setelah dibuka, bagikan tautannya. Anggota absen dari HP masing-masing dengan memindai wajah.</p>
+      </div>
+      <div class="card">
+        <div class="listhead"><h2>Pertemuan hari ini</h2><button type="button" class="btn small" id="dSegar">Segarkan</button></div>
+        <ul class="plain" id="dSesi"></ul>
+      </div>
+    </div>
+
+    <div class="view" id="v-sesi" hidden>
+      <div class="actions"><button type="button" class="btn small" id="sKembali">Kembali</button><span class="chip" id="sChip"></span></div>
+      <div class="listhead"><div><p class="datehead" id="sJudul"></p><p class="hint" id="sSub"></p></div><button type="button" class="btn small" id="sUbah">Ubah pertemuan</button></div>
+      <div class="card" id="sBagi">
+        <h2>Bagikan ke anggota</h2>
+        <div class="inline"><input id="sTautan" type="text" readonly aria-label="Tautan absensi"><button type="button" class="btn primary" id="sSalin">Salin</button></div>
+        <div class="actions"><a class="btn" id="sWa" target="_blank" rel="noopener">Kirim lewat WhatsApp</a><button type="button" class="btn" id="sQrBtn">Tampilkan kode QR</button></div>
+        <div id="sQr" class="qr" hidden></div>
+        <p class="hint">Anggota membuka tautan di HP masing-masing. Kamera langsung memindai wajah, lalu nama dikenali dan dicatat hadir otomatis. Tautan hanya berlaku hari ini selama pertemuan dibuka.</p>
+      </div>
+      <div class="card">
+        <h2>Pindai wajah anggota dari HP ini</h2>
+        <p class="hint" id="sPindaiInfo"></p>
+        <div class="actions"><button type="button" class="btn primary" id="sPindai">Mulai pindai wajah</button></div>
+      </div>
+      <div class="card" id="sGuru"></div>
+      <div class="card" id="sRingkas"></div>
+      <div class="card">
+        <div class="listhead"><h2>Daftar hadir</h2><span id="sInfo"></span></div>
+        <ol class="ledger" id="sDaftar"></ol>
+      </div>
+      <div class="card">
+        <label class="check" for="sAlpa" id="sAlpaLabel"><input type="checkbox" id="sAlpa" checked>Saat menutup, tandai yang belum absen sebagai Alpa</label>
+        <div class="actions"><button type="button" class="btn primary" id="sTutup">Tutup pertemuan</button><button type="button" class="btn danger" id="sHapus">Hapus pertemuan</button></div>
+      </div>
+    </div>
+
+    <div class="view" id="v-anggota" hidden>
+      <div class="card">
+        <div class="fgroup"><label class="field" for="aKelas">Kelas</label><select id="aKelas"></select></div>
+        <div class="actions"><button type="button" class="btn small" id="aUbahKelas">Ubah kelas</button><button type="button" class="btn small" id="aKelasBaru">Kelas baru</button></div>
+      </div>
+      <div class="card">
+        <h2>Tambah anggota</h2>
+        <div class="fgroup"><label class="field" for="aBaru">Nama, satu per baris</label><textarea id="aBaru" rows="3" placeholder="Aisyah Putri&#10;Budi Santoso, 2231"></textarea></div>
+        <p class="hint">Tulis NIS atau NIM setelah koma bila ada.</p>
+        <div class="actions"><button type="button" class="btn primary" id="aTambah">Tambah ke kelas</button></div>
+      </div>
+      <div class="card">
+        <div class="listhead"><h2>Anggota</h2><span id="aInfo"></span></div>
+        <p class="hint">Wajah anggota hanya bisa didaftarkan dari sini. Pindai wajah tiap anggota secara langsung, menghadap kamera, di tempat yang terang.</p>
+        <div class="actions"><button type="button" class="btn primary" id="aBeruntun">Daftarkan wajah berurutan</button></div>
+        <ol class="ledger" id="aDaftar"></ol>
+      </div>
+    </div>
+
+    <div class="view" id="v-rekap" hidden>
+      <div class="card">
+        <h2>Rekap absensi</h2>
+        <div class="rowform">
+          <label for="rKelas">Kelas<select id="rKelas"></select></label>
+          <label for="rBulan">Periode<select id="rBulan"><option value="">Semua pertemuan</option></select></label>
+        </div>
+        <p class="hint" id="rKepala"></p>
+        <div class="tablewrap" id="rWrap"></div>
+        <div class="actions"><button type="button" class="btn primary" id="rSheet">Buat rekap di Google Sheets</button><a class="btn" id="rBuka" target="_blank" rel="noopener" hidden>Buka rekap</a></div>
+        <p class="hint">Ketuk judul kolom pertemuan untuk membuka dan mengoreksi daftar hadirnya. Rekap di Google Sheets bisa dicetak atau diunduh sebagai Excel dan PDF.</p>
+      </div>
+    </div>
+
+    <div class="view" id="v-akun" hidden>
+      <div class="card">
+        <h2>Identitas</h2>
+        <div class="fgroup"><label class="field" for="kNama">Nama pendidik</label><input id="kNama" type="text" maxlength="120"></div>
+        <div class="fgroup"><label class="field" for="kSekolah">Sekolah atau kampus</label><input id="kSekolah" type="text" maxlength="120"></div>
+        <div class="fgroup"><label class="field" for="kAmbang">Ketelitian pengenalan wajah</label>
+          <select id="kAmbang"><option value="0.44">Ketat</option><option value="0.5">Normal</option><option value="0.56">Longgar</option></select></div>
+        <div class="actions"><button type="button" class="btn primary" id="kSimpan">Simpan</button></div>
+      </div>
+      <div class="card">
+        <h2>Ganti kata sandi</h2>
+        <div class="fgroup"><label class="field" for="kLama">Kata sandi lama</label><input id="kLama" type="password" autocomplete="current-password"></div>
+        <div class="fgroup"><label class="field" for="kBaru">Kata sandi baru (minimal 8 karakter)</label><input id="kBaru" type="password" autocomplete="new-password"></div>
+        <div class="actions"><button type="button" class="btn" id="kSandi">Ganti kata sandi</button></div>
+      </div>
+      <div class="card">
+        <h2>Data</h2>
+        <p class="hint">Semua data tersimpan di Google Sheets milik Anda. Foto tidak disimpan; yang disimpan hanya pola angka wajah.</p>
+        <div class="actions"><a class="btn" id="kBuku" target="_blank" rel="noopener">Buka data di Google Sheets</a><button type="button" class="btn" id="kResetWajah">Hapus data wajah pendidik</button><button type="button" class="btn danger" id="kKeluar">Keluar</button></div>
+      </div>
+    </div>
+  </main>
+  <nav class="tabs" aria-label="Menu utama"><div>
+    <button type="button" data-tab="dasbor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z"/></svg>Dasbor</button>
+    <button type="button" data-tab="anggota"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.9.2 5 2.6 5 5.8"/></svg>Anggota</button>
+    <button type="button" data-tab="rekap"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg>Rekap</button>
+    <button type="button" data-tab="akun"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg>Akun</button>
+  </div></nav>
+</section>
+
+<!-- ============ ANGGOTA ============ -->
+<section id="layarSiswa" hidden>
+  <header class="top"><div class="wrap"><h1 id="mKelas">Absensi</h1><p class="hint" id="mSub"></p></div></header>
+  <main class="wrap">
+    <div class="view">
+      <div class="card" id="mPesan" hidden></div>
+      <div class="card" id="mAksi" hidden>
+        <h2>Absen dengan wajah</h2>
+        <p class="hint">Kamera terbuka otomatis dan wajah Anda dikenali tanpa perlu memilih nama. Hadapkan wajah lurus ke kamera, di tempat yang terang, tanpa masker.</p>
+        <p class="progress" id="mStatus" role="status" aria-live="polite"></p>
+        <div class="actions"><button type="button" class="btn primary" id="mPindai">Pindai wajah</button></div>
+      </div>
+      <div class="card sukses" id="mSukses" hidden></div>
+    </div>
+  </main>
+</section>
+
+<!-- ============ KAMERA ============ -->
+<div class="overlay" id="kamera" hidden>
+  <div class="kambox">
+    <h2 id="kamJudul">Pindai wajah</h2>
+    <div class="kamview" id="kamView"><video id="kamVideo" playsinline muted autoplay></video><div class="oval" aria-hidden="true"></div></div>
+    <p class="progress" id="kamStatus" role="status" aria-live="polite"></p>
+    <ul class="kamlog" id="kamLog" hidden></ul>
+    <div class="actions" id="kamCadangan" hidden>
+      <input class="vh" type="file" id="kamFile" accept="image/*" capture="user">
+      <label class="btn primary lebar" for="kamFile">Ambil foto wajah</label>
+    </div>
+    <button type="button" class="btn lebar" id="kamGanti">Kamera bermasalah? Pakai foto</button>
+    <button type="button" class="btn lebar" id="kamLewati" hidden>Lewati anggota ini</button>
+    <button type="button" class="btn lebar" id="kamBatal">Batal</button>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgJudul">
+  <div class="dhead"><h2 id="dlgJudul"></h2><button type="button" class="btn small" id="dlgTutup">Tutup</button></div>
+  <div class="dbody" id="dlgIsi"></div>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ===== WAJIB DIISI: URL aplikasi web Apps Script (berakhiran /exec) ===== */
+var API_URL = 'https://script.google.com/macros/s/AKfycbyx5GPy1q7x2zaCW9nueaZQy2I_aQ18gS0R7ysCIoKY4WXFCeo4NrplxIJVDGEDSXOt/exec';
+</script>
+<script>
+(function(){
+'use strict';
+var LIB='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js';
+var MODEL='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model';
+var QRLIB='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+var ST={H:'Hadir',S:'Sakit',I:'Izin',A:'Alpa'};
+var VIA={wajah:'wajah',pendidik:'wajah, dipindai pendidik',daftar:'wajah, pendaftaran pertama',manual:'manual'};
+
+/* ---------- alat bantu ---------- */
+function $(s,r){return (r||document).querySelector(s);}
+function h(tag,a){
+  var e=document.createElement(tag),k,v,i;
+  for(k in (a||{})){ v=a[k]; if(v==null||v===false) continue;
+    if(k==='class') e.className=v;
+    else if(k.slice(0,2)==='on') e.addEventListener(k.slice(2),v);
+    else if(k==='value'||k==='checked'||k==='disabled'||k==='hidden'||k==='selected') e[k]=v;
+    else e.setAttribute(k,v===true?'':v);
+  }
+  var kids=[]; (function rata(arr){ for(var j=0;j<arr.length;j++){ if(Array.isArray(arr[j])) rata(arr[j]); else kids.push(arr[j]); } })(Array.prototype.slice.call(arguments,2));
+  for(i=0;i<kids.length;i++){ var c=kids[i]; if(c==null||c===false) continue; e.appendChild(typeof c==='object'?c:document.createTextNode(String(c))); }
+  return e;
+}
+function jeda(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{ if(v==null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){}}
+function tglPanjang(s){var p=String(s||'').split('-'),d=new Date(+p[0],+p[1]-1,+p[2]);return isNaN(d)?s:d.toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+function tglPendek(s){return s.slice(8,10)+'/'+s.slice(5,7);}
+var toastTimer=null;
+function toast(msg){var t=$('#toast');t.textContent=msg;clearTimeout(toastTimer);toastTimer=setTimeout(function(){t.textContent='';},4500);}
+function layar(id){['muat','layarMasuk','layarGuru','layarSiswa'].forEach(function(x){$('#'+x).hidden=x!==id;});}
+function isiPilihan(sel,daftar,nilai){ sel.textContent=''; daftar.forEach(function(o){sel.appendChild(h('option',{value:o.nilai,selected:o.nilai===nilai},o.nama));}); }
+
+/* ---------- panggilan ke server ---------- */
+function api(nama){
+  var args=Array.prototype.slice.call(arguments,1);
+  return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:nama,args:args}),redirect:'follow'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(r){ if(r&&r.__galat) throw new Error(r.__galat); return r; });
+}
+var T={token:null,d:null,tab:'dasbor',sesi:null,kode:null,asal:'dasbor',anggota:[],rekap:null,sibuk:false};
+function g(nama){
+  var args=[nama,T.token].concat(Array.prototype.slice.call(arguments,1));
+  return api.apply(null,args).catch(function(e){ if(sesiHabis(e)) keluarLokal('Sesi berakhir. Silakan masuk lagi.'); throw e; });
+}
+function sesiHabis(e){return String((e&&e.message)||e).indexOf('SESI_HABIS')>=0;}
+function galat(e){ if(sesiHabis(e)||(e&&e.message==='BATAL')) return; if(window.console) console.error(e); toast('Terjadi gangguan. Periksa internet lalu coba lagi.'); }
+function hasilOk(r){ if(r&&r.ok) return true; toast((r&&r.pesan)||'Tidak berhasil. Coba lagi.'); return false; }
+async function kerja(btn,fn){
+  if(btn){ if(btn.disabled) return; btn.disabled=true; }
+  T.sibuk=true;
+  try{ return await fn(); }catch(e){ galat(e); }
+  finally{ T.sibuk=false; if(btn) btn.disabled=false; }
+}
+
+/* ---------- mesin wajah dan kamera ---------- */
+var mesin=null;
+function skrip(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.async=true;s.onload=function(){res();};s.onerror=function(){s.remove();rej(new Error('SKRIP'));};document.head.appendChild(s);});}
+function muatMesin(){
+  if(mesin) return mesin;
+  mesin=(async function(){
+    if(!window.faceapi) await skrip(LIB);
+    var f=window.faceapi;
+    if(f.tf&&f.tf.ready) await f.tf.ready();
+    await Promise.all([f.nets.tinyFaceDetector.loadFromUri(MODEL),f.nets.faceLandmark68Net.loadFromUri(MODEL),f.nets.faceRecognitionNet.loadFromUri(MODEL)]);
+  })().catch(function(e){ mesin=null; if(window.console) console.error(e); throw new Error('MESIN'); });
+  return mesin;
+}
+function bulat(d){var o=[],i;for(i=0;i<d.length;i++)o.push(Math.round(d[i]*10000)/10000);return o;}
+async function fileKeKanvas(file){
+  var src=null,url=null;
+  try{ src=await createImageBitmap(file,{imageOrientation:'from-image'}); }catch(e){
+    url=URL.createObjectURL(file);
+    src=await new Promise(function(res,rej){var im=new Image();im.onload=function(){res(im);};im.onerror=function(){rej(new Error('FOTO'));};im.src=url;});
+  }
+  var w=src.width||src.naturalWidth,t=src.height||src.naturalHeight,k=Math.min(1,1280/Math.max(w,t)),c=document.createElement('canvas');
+  c.width=Math.round(w*k); c.height=Math.round(t*k);
+  c.getContext('2d').drawImage(src,0,0,c.width,c.height);
+  if(src.close) src.close(); if(url) URL.revokeObjectURL(url);
+  return c;
+}
+async function deteksi(sumber,ukuran){
+  var f=window.faceapi;
+  return await f.detectSingleFace(sumber,new f.TinyFaceDetectorOptions({inputSize:ukuran,scoreThreshold:0.5})).withFaceLandmarks().withFaceDescriptor();
+}
+function jarakKlien(a,b){var s=0,i,d;for(i=0;i<128;i++){d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);}
+/**
+ * Kamera wajah.
+ * opsi.judul  : judul layar
+ * opsi.n      : jumlah pola wajah yang dikumpulkan (mode biasa)
+ * opsi.foto   : boleh beralih ke foto bila kamera langsung bermasalah
+ * opsi.lewati : tampilkan tombol Lewati (ditolak dengan Error('LEWATI'))
+ * opsi.terus  : async function(pola) -> {ok, teks}; kamera terus memindai sampai Selesai
+ * Ditolak dengan Error('BATAL'), Error('KAMERA') atau Error('MESIN').
+ */
+function kamera(opsi){
+  return new Promise(function(resolve,reject){
+    var ov=$('#kamera'),video=$('#kamVideo'),stat=$('#kamStatus'),file=$('#kamFile'),log=$('#kamLog');
+    var stream=null,hidup=true,hasil=[],modeFoto=false,n=opsi.n||1,sibuk=false,terakhir=null,waktuTerakhir=0;
+    function status(t,jenis){stat.textContent=t;stat.className='progress'+(jenis?' '+jenis:'');}
+    function matikan(){ if(stream) stream.getTracks().forEach(function(t){t.stop();}); stream=null; try{video.srcObject=null;}catch(e){} }
+    function keFoto(pesan){ modeFoto=true; matikan(); $('#kamView').hidden=true; $('#kamGanti').hidden=true; $('#kamCadangan').hidden=false; status(pesan); }
+    function tutup(){ hidup=false; matikan(); ov.hidden=true; file.onchange=null; ['#kamBatal','#kamGanti','#kamLewati'].forEach(function(s){$(s).onclick=null;}); }
+    function selesai(){ tutup(); resolve(hasil); }
+    function gagal(kode){ tutup(); reject(new Error(kode)); }
+    async function kirim(d){
+      sibuk=true; status('Mencocokkan wajah');
+      var r; try{ r=await opsi.terus(d); }catch(e){ r={ok:false,teks:'Gangguan jaringan. Coba lagi.'}; }
+      sibuk=false; if(!hidup) return;
+      status(r.teks,r.ok?'ok':'err');
+      if(r.ok){ log.insertBefore(h('li',null,r.teks),log.firstChild); hasil.push(r); }
+    }
+    $('#kamJudul').textContent=opsi.judul;
+    $('#kamCadangan').hidden=true; $('#kamView').hidden=false; $('#kamGanti').hidden=!opsi.foto; $('#kamLewati').hidden=!opsi.lewati;
+    log.textContent=''; log.hidden=!opsi.terus;
+    $('#kamBatal').textContent=opsi.terus?'Selesai':'Batal';
+    ov.hidden=false; status('Menyiapkan kamera');
+    $('#kamBatal').onclick=function(){ if(opsi.terus) selesai(); else gagal('BATAL'); };
+    $('#kamLewati').onclick=function(){ gagal('LEWATI'); };
+    $('#kamGanti').onclick=function(){ keFoto('Ambil foto wajah yang terlihat jelas dari depan.'); };
+    file.onchange=async function(e){
+      var fl=e.target.files&&e.target.files[0]; e.target.value=''; if(!fl||!hidup||sibuk) return;
+      try{
+        status('Memeriksa foto'); await muatMesin();
+        var c=await fileKeKanvas(fl),r=null,uk=[416,320,608,224,160],i;
+        for(i=0;i<uk.length&&!r;i++) r=await deteksi(c,uk[i]);
+        if(!hidup) return;
+        if(!r||r.detection.box.width<c.width*0.12){ status('Wajah tidak terlihat jelas di foto. Ambil foto lagi dari dekat, di tempat terang.','err'); return; }
+        if(opsi.terus){ await kirim(bulat(r.descriptor)); return; }
+        hasil=[bulat(r.descriptor)]; selesai();
+      }catch(err){ if(hidup) status(err&&err.message==='MESIN'?'Mesin wajah gagal dimuat. Periksa internet lalu coba lagi.':'Foto tidak bisa dibaca. Coba ambil lagi.','err'); }
+    };
+    (async function(){
+      var kameraOk=true;
+      try{
+        if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia) throw new Error('TANPA_KAMERA');
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+        if(!hidup){ stream.getTracks().forEach(function(t){t.stop();}); return; }
+        video.srcObject=stream; await video.play();
+      }catch(e){ kameraOk=false; }
+      if(!hidup) return;
+      if(!kameraOk&&!modeFoto){
+        if(!opsi.foto){ gagal('KAMERA'); return; }
+        keFoto('Kamera langsung tidak bisa dibuka di peramban ini. Izinkan akses kamera lalu coba lagi, atau ambil foto wajah.');
+      }
+      else if(!modeFoto) status('Memuat mesin wajah. Pertama kali perlu mengunduh sekitar 7 MB.');
+      try{ await muatMesin(); }catch(e){ if(!hidup) return; if(!opsi.foto){ gagal('MESIN'); return; } status('Mesin wajah gagal dimuat. Periksa internet, tutup, lalu coba lagi.','err'); return; }
+      if(!hidup||modeFoto) return;
+      var uk=[320,416,224,160],putar=0,beruntun=0,awal=Date.now();
+      status(opsi.terus?'Arahkan kamera ke wajah anggota':'Hadapkan wajah ke kamera');
+      while(hidup&&!modeFoto){
+        var r=null;
+        try{ if(video.videoWidth) r=await deteksi(video,uk[putar%uk.length]); }catch(e){}
+        if(!hidup||modeFoto) break;
+        if(r&&r.detection.score>=0.6&&r.detection.box.width>=video.videoWidth*(opsi.terus?0.14:0.18)){
+          beruntun++;
+          if(beruntun>=2){
+            var d=bulat(r.descriptor); beruntun=0;
+            if(opsi.terus){
+              if(terakhir&&jarakKlien(d,terakhir)<0.4&&Date.now()-waktuTerakhir<6000){ awal=Date.now(); }
+              else { terakhir=d; waktuTerakhir=Date.now(); await kirim(d); if(!hidup) break; await jeda(1500); if(hidup&&!sibuk) status('Arahkan kamera ke wajah anggota berikutnya'); awal=Date.now(); }
+            } else {
+              hasil.push(d);
+              if(hasil.length>=n){ selesai(); return; }
+              status('Bagus, tahan sebentar ('+hasil.length+' dari '+n+')'); await jeda(450);
+            }
+          }
+        } else {
+          beruntun=0;
+          if(!r) putar++;
+          if(!opsi.terus||Date.now()-waktuTerakhir>3500)
+            status(r?'Dekatkan wajah ke kamera':(Date.now()-awal>12000?'Wajah belum terlihat. Cari tempat yang lebih terang dan lepas masker.':(opsi.terus?'Arahkan kamera ke wajah anggota':'Hadapkan wajah ke kamera')));
+        }
+        await jeda(120);
+      }
+    })();
+  });
+}
+
+/* =====================================================================
+   PENDIDIK
+   ===================================================================== */
+function keluarLokal(pesan){
+  T.token=null; lsSet('absen.token',null); T.d=null; T.sesi=null;
+  $('#masukPesan').textContent=pesan||''; $('#inSandi').value='';
+  layar('layarMasuk');
+}
+async function mulaiGuru(){
+  T.token=lsGet('absen.token');
+  if(T.token){ try{ await muatDasbor(); layar('layarGuru'); tab('dasbor'); return; }catch(e){ if(!sesiHabis(e)){ $('#masukPesan').textContent='Server belum bisa dijangkau. Periksa internet lalu muat ulang.'; } } }
+  T.token=null; layar('layarMasuk');
+}
+$('#formMasuk').addEventListener('submit',function(e){
+  e.preventDefault();
+  var btn=$('#btnMasuk'),pesan=$('#masukPesan'); if(btn.disabled) return;
+  btn.disabled=true; pesan.textContent=''; btn.textContent='Memeriksa';
+  api('masuk',$('#inUser').value,$('#inSandi').value).then(async function(r){
+    if(!r||!r.ok){ pesan.textContent=(r&&r.pesan)||'Tidak bisa masuk.'; return; }
+    T.token=r.token; lsSet('absen.token',r.token); $('#inSandi').value='';
+    await muatDasbor(); layar('layarGuru'); tab('dasbor');
+  }).catch(function(){ pesan.textContent='Server belum bisa dijangkau. Periksa internet lalu coba lagi.'; })
+    .then(function(){ btn.disabled=false; btn.textContent='Masuk'; });
+});
+
+function tab(nama){
+  T.tab=nama;
+  ['dasbor','sesi','anggota','rekap','akun'].forEach(function(v){ $('#v-'+v).hidden=v!==nama; });
+  var aktif=nama==='sesi'?T.asal:nama;
+  Array.prototype.forEach.call(document.querySelectorAll('.tabs button'),function(b){ if(b.getAttribute('data-tab')===aktif) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  window.scrollTo(0,0);
+  if(nama==='dasbor') renderDasbor();
+  else if(nama==='anggota') muatAnggota();
+  else if(nama==='rekap') muatRekap();
+  else if(nama==='akun') renderAkun();
+}
+Array.prototype.forEach.call(document.querySelectorAll('.tabs button'),function(b){
+  b.addEventListener('click',function(){ var n=b.getAttribute('data-tab'); if(n==='dasbor') kerja(null,async function(){ tab('dasbor'); await muatDasbor(); renderDasbor(); }); else tab(n); });
+});
+
+/* ---------- dasbor ---------- */
+async function muatDasbor(){ var r=await g('dasbor'); if(r&&r.ok) T.d=r; return r; }
+function pilihanKelas(){ return T.d.kelas.map(function(k){return {nilai:k.id,nama:k.nama+' ('+k.jumlah+')'};}); }
+function renderDasbor(){
+  var d=T.d; if(!d) return;
+  $('#chipTgl').textContent=tglPanjang(d.hariIni);
+  $('#dNama').textContent=d.pendidik; $('#dSekolah').textContent=d.sekolah; $('#dSekolah').hidden=!d.sekolah;
+  var sel=$('#dKelas'),lama=sel.value;
+  isiPilihan(sel,d.kelas.length?pilihanKelas():[{nilai:'',nama:'Belum ada kelas'}],lama);
+  $('#dBuka').disabled=!d.kelas.length;
+  var ag=$('#dAbsenGuru'); ag.textContent='';
+  if(!d.sesi.length) ag.appendChild(h('li',{class:'empty'},'Belum ada pertemuan hari ini. Buka pertemuan, lalu catat kehadiran Anda di sini.'));
+  d.sesi.forEach(function(s){
+    var kanan=s.guru==='H'
+      ? h('span',{class:'tag H'},'Hadir '+s.guruJam)
+      : h('div',{class:'actions'},h('button',{type:'button',class:'btn small primary',onclick:function(e){absenGuru(s.kode,true,e.currentTarget);}},'Absen wajah'),
+          h('button',{type:'button',class:'btn small',onclick:function(e){absenGuru(s.kode,false,e.currentTarget);}},'Tanpa wajah'));
+    ag.appendChild(h('li',null,h('div',{class:'who'},h('span',{class:'nm'},s.kelas+', pertemuan ke-'+s.ke),h('span',{class:'meta'},s.guru==='H'?'Tercatat lewat '+(VIA[s.guruVia]||'manual'):'Anda belum absen')),kanan));
+  });
+  var ul=$('#dSesi'); ul.textContent='';
+  if(!d.sesi.length) ul.appendChild(h('li',{class:'empty'},'Belum ada pertemuan yang dibuka hari ini.'));
+  d.sesi.forEach(function(s){
+    ul.appendChild(h('li',null,
+      h('div',{class:'who'},h('span',{class:'nm'},s.kelas+', pertemuan ke-'+s.ke),h('span',{class:'meta'},s.hadir+' dari '+s.total+' hadir')),
+      h('div',{class:'actions'},h('span',{class:'chip '+(s.status==='buka'?'ok':'off')},s.status==='buka'?'Dibuka':'Ditutup'),
+        h('button',{type:'button',class:'btn small',onclick:function(){bukaSesi(s.kode,'dasbor');}},'Kelola'))));
+  });
+}
+$('#dBuka').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var id=$('#dKelas').value; if(!id) return;
+  var r=await g('bukaPertemuan',id); if(!hasilOk(r)) return;
+  if(r.lama) toast('Pertemuan kelas ini sudah dibuka hari ini.');
+  await bukaSesi(r.kode,'dasbor'); muatDasbor();
+}); });
+$('#dSegar').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){ await muatDasbor(); renderDasbor(); }); });
+
+async function absenGuru(kode,denganWajah,btn){
+  await kerja(btn,async function(){
+    var sampel=null;
+    if(denganWajah){
+      var punya=T.sesi&&T.tab==='sesi'?T.sesi.punyaWajahPendidik:T.d.punyaWajahPendidik;
+      sampel=await kamera({n:punya?1:3,judul:punya?'Pindai wajah pendidik':'Daftarkan wajah pendidik',foto:true});
+    }
+    var r=await g('absenPendidik',kode,sampel,false); if(!hasilOk(r)) return;
+    toast(r.via==='daftar'?'Wajah Anda didaftarkan dan kehadiran tercatat.':'Kehadiran Anda tercatat pukul '+r.jam+'.');
+    await segarkanSemua();
+  });
+}
+async function segarkanSemua(){
+  if(T.tab==='sesi'&&T.kode) await muatSesi();
+  await muatDasbor(); if(T.tab==='dasbor') renderDasbor();
+}
+
+/* ---------- detail pertemuan ---------- */
+async function bukaSesi(kode,asal){
+  T.kode=kode; T.asal=asal||'dasbor'; T.sesi=null; $('#sQr').hidden=true; $('#sQr').textContent='';
+  var r=await g('detailPertemuan',kode);
+  if(!hasilOk(r)) return;
+  T.sesi=r; tab('sesi'); renderSesi();
+}
+async function muatSesi(diam){
+  if(!T.kode) return;
+  try{ var r=await g('detailPertemuan',T.kode); if(r&&r.ok&&r.sesi.kode===T.kode){ T.sesi=r; if(T.tab==='sesi') renderSesi(); } }
+  catch(e){ if(!diam) throw e; }
+}
+function renderSesi(){
+  var d=T.sesi; if(!d) return; var s=d.sesi;
+  d.tautan=location.origin+location.pathname+'?p='+s.kode;
+  $('#sJudul').textContent=s.kelas+', pertemuan ke-'+s.ke;
+  $('#sSub').textContent=tglPanjang(s.tanggal)+(s.jamMulai?' · pukul '+s.jamMulai+(s.jamSelesai?'–'+s.jamSelesai:''):'');
+  var chip=$('#sChip'); chip.textContent=s.buka?'Dibuka':(s.status==='buka'?'Sudah lewat hari':'Ditutup'); chip.className='chip '+(s.buka?'ok':'off');
+  $('#sBagi').hidden=!s.buka;
+  if(s.buka){
+    var inp=$('#sTautan'); if(inp.value!==d.tautan) inp.value=d.tautan;
+    $('#sWa').href='https://wa.me/?text='+encodeURIComponent('Absensi '+s.kelas+' pertemuan ke-'+s.ke+', '+tglPanjang(s.tanggal)+'. Buka tautan ini, pilih nama Anda, lalu pindai wajah: '+d.tautan);
+  }
+  var gk=$('#sGuru'); gk.textContent='';
+  gk.appendChild(h('span',{class:'field'},'Absen pendidik'));
+  gk.appendChild(h('p',{class:'nm'},d.pendidik));
+  if(s.guru==='H') gk.appendChild(h('div',{class:'actions'},h('span',{class:'tag H'},'Hadir '+s.guruJam+' lewat '+(VIA[s.guruVia]||'manual')),
+    h('button',{type:'button',class:'btn small',onclick:function(e){ kerja(e.currentTarget,async function(){ var r=await g('absenPendidik',T.kode,null,true); if(hasilOk(r)) await segarkanSemua(); }); }},'Batalkan')));
+  else gk.appendChild(h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){absenGuru(T.kode,true,e.currentTarget);}},d.punyaWajahPendidik?'Absen dengan wajah':'Daftarkan wajah dan absen'),
+    h('button',{type:'button',class:'btn',onclick:function(e){absenGuru(T.kode,false,e.currentTarget);}},'Catat tanpa wajah')));
+
+  var n={H:0,S:0,I:0,A:0},total=d.anggota.length;
+  d.anggota.forEach(function(m){ if(n[m.status]!=null) n[m.status]++; });
+  var belum=total-n.H-n.S-n.I-n.A,rk=$('#sRingkas'); rk.textContent='';
+  rk.appendChild(h('div',{class:'bar',role:'img','aria-label':'Hadir '+n.H+', sakit '+n.S+', izin '+n.I+', alpa '+n.A+', belum '+belum},
+    ['H','S','I','A'].map(function(c){var sp=h('span',{class:'b'+c});sp.style.width=(total?n[c]/total*100:0)+'%';return sp;})));
+  rk.appendChild(h('div',{class:'tiles'},['H','S','I','A'].map(function(c){return h('div',{class:'tile t'+c},h('b',null,String(n[c])),h('span',null,ST[c]));}),h('div',{class:'tile'},h('b',null,String(belum)),h('span',null,'Belum'))));
+  var nw=d.anggota.filter(function(m){return m.wajah;}).length;
+  $('#sInfo').textContent=total+' anggota, '+nw+' sudah punya data wajah';
+  $('#sPindaiInfo').textContent=nw?'Arahkan kamera HP ini ke wajah anggota satu per satu. Nama dikenali dan dicatat hadir otomatis. '+nw+' dari '+total+' anggota sudah terdaftar wajahnya.'
+    :'Belum ada wajah anggota yang terdaftar di kelas ini. Daftarkan dulu di menu Anggota.';
+  $('#sPindai').disabled=!nw;
+  var ol=$('#sDaftar'); ol.textContent='';
+  if(!total) ol.appendChild(h('li',{class:'empty'},'Kelas ini belum punya anggota. Tambahkan di menu Anggota.'));
+  d.anggota.forEach(function(m,i){
+    var st=ST[m.status]?m.status:'';
+    ol.appendChild(h('li',{class:'row'+(st?' is-'+st:'')},h('span',{class:'no'},String(i+1)),
+      h('div',{class:'who'},h('span',{class:'nm'},m.nama),h('span',{class:'meta'},st?ST[st]+' '+m.jam+', '+(VIA[m.via]||'manual'):'Belum absen'+(m.wajah?'':', wajah belum terdaftar'))),
+      h('div',{class:'seg',role:'group','aria-label':'Status '+m.nama},Object.keys(ST).map(function(c){return h('button',{type:'button',class:'st st-'+c,'aria-pressed':String(st===c),'aria-label':ST[c],'data-id':m.id,'data-st':c},c);}))));
+  });
+  $('#sTutup').textContent=s.status==='buka'?'Tutup pertemuan':'Buka lagi';
+  $('#sTutup').hidden=s.status!=='buka'&&!s.hariIni;
+  $('#sAlpaLabel').hidden=s.status!=='buka';
+}
+$('#sDaftar').addEventListener('click',function(e){
+  var b=e.target.closest('.st'); if(!b||T.sibuk) return;
+  var id=b.getAttribute('data-id'),st=b.getAttribute('data-st'),m=T.sesi.anggota.filter(function(x){return x.id===id;})[0]; if(!m) return;
+  var baru=m.status===st?'':st;
+  kerja(null,async function(){ var r=await g('setStatus',T.kode,id,baru); if(hasilOk(r)) await muatSesi(); });
+});
+$('#sUbah').addEventListener('click',function(){
+  var s=T.sesi&&T.sesi.sesi; if(!s) return;
+  var ke=h('input',{id:'edKe',type:'number',min:'1',max:'99',inputmode:'numeric',value:String(s.ke)});
+  var tgl=h('input',{id:'edTgl',type:'date',value:s.tanggal});
+  var mulai=h('input',{id:'edMulai',type:'time',value:(s.jamMulai||'').replace('.',':')});
+  var selesai=h('input',{id:'edSelesai',type:'time',value:(s.jamSelesai||'').replace('.',':')});
+  bukaLembar('Ubah pertemuan',h('div',{class:'view'},
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edKe'},'Pertemuan ke'),ke),
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edTgl'},'Tanggal'),tgl),
+    h('div',{class:'rowform'},h('label',{for:'edMulai'},'Jam mulai',mulai),h('label',{for:'edSelesai'},'Jam selesai',selesai)),
+    h('p',{class:'hint'},'Bila tanggal diubah ke hari lain, tautan anggota tidak bisa dipakai lagi. Kehadiran tetap bisa dicatat dari akun pendidik, lewat tombol H, S, I, A atau pindai wajah.'),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){ kerja(e.currentTarget,async function(){
+      var r=await g('ubahPertemuan',T.kode,ke.value,tgl.value,mulai.value,selesai.value); if(!hasilOk(r)) return;
+      tutupLembar(); toast('Pertemuan diperbarui.'); T.rekap=null; await segarkanSemua();
+    }); }},'Simpan'))));
+});
+$('#sKembali').addEventListener('click',function(){ kerja(null,async function(){ var asal=T.asal; T.kode=null; T.sesi=null; tab(asal); if(asal==='dasbor'){ await muatDasbor(); renderDasbor(); } }); });
+$('#sSalin').addEventListener('click',function(){
+  var inp=$('#sTautan'),ok=function(){toast('Tautan disalin. Tempel di grup kelas.');};
+  function cadangan(){ inp.focus(); inp.select(); try{ if(document.execCommand('copy')) ok(); else toast('Tekan lama tautan untuk menyalin.'); }catch(e){ toast('Tekan lama tautan untuk menyalin.'); } }
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(ok,cadangan); else cadangan(); }catch(e){ cadangan(); }
+});
+$('#sQrBtn').addEventListener('click',function(e){
+  var kotak=$('#sQr'); if(!kotak.hidden){ kotak.hidden=true; e.currentTarget.textContent='Tampilkan kode QR'; return; }
+  var btn=e.currentTarget;
+  kerja(btn,async function(){
+    try{ if(!window.qrcode) await skrip(QRLIB); }catch(err){ toast('Kode QR gagal dimuat. Bagikan tautannya saja.'); return; }
+    var q=window.qrcode(0,'M'); q.addData($('#sTautan').value); q.make();
+    kotak.innerHTML=q.createSvgTag({cellSize:6,margin:4,scalable:true});
+    kotak.hidden=false; btn.textContent='Sembunyikan kode QR';
+  });
+});
+$('#sTutup').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var buka=T.sesi.sesi.status!=='buka';
+  var r=await g('aturPertemuan',T.kode,buka,!buka&&$('#sAlpa').checked); if(!hasilOk(r)) return;
+  toast(buka?'Pertemuan dibuka lagi.':'Pertemuan ditutup.'+(r.alpa?' '+r.alpa+' anggota ditandai Alpa.':''));
+  await segarkanSemua();
+}); });
+$('#sHapus').addEventListener('click',function(e){
+  if(!window.confirm('Hapus pertemuan ini beserta seluruh catatan kehadirannya?')) return;
+  kerja(e.currentTarget,async function(){ var r=await g('hapusPertemuan',T.kode); if(!hasilOk(r)) return; toast('Pertemuan dihapus.'); var asal=T.asal; T.kode=null; T.sesi=null; T.rekap=null; tab(asal); if(asal==='dasbor'){ await muatDasbor(); renderDasbor(); } });
+});
+$('#sPindai').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var kode=T.kode,kelas=T.sesi.sesi.kelas;
+  var hasil=await kamera({judul:'Pindai wajah anggota · '+kelas,foto:true,terus:async function(d){
+    var r=await g('absenWajahPendidik',kode,[d]);
+    if(r&&r.ok) return {ok:true,teks:(r.sudah?'Sudah hadir: ':'Hadir: ')+r.nama+(r.jam?' · '+r.jam:'')};
+    return {ok:false,teks:(r&&r.pesan)||'Wajah tidak dikenali.'};
+  }});
+  if(hasil.length) toast(hasil.length+' wajah tercatat.');
+  await segarkanSemua();
+}); });
+setInterval(function(){ if(T.token&&T.tab==='sesi'&&T.sesi&&T.sesi.sesi.buka&&!document.hidden&&!T.sibuk&&$('#kamera').hidden) muatSesi(true); },10000);
+
+/* ---------- anggota ---------- */
+function kelasTerpilih(){ var id=$('#aKelas').value; return T.d.kelas.filter(function(k){return k.id===id;})[0]||null; }
+async function muatAnggota(){
+  var sel=$('#aKelas'),lama=sel.value||lsGet('absen.kelas')||'';
+  isiPilihan(sel,T.d.kelas.length?pilihanKelas():[{nilai:'',nama:'Belum ada kelas'}],lama);
+  $('#aUbahKelas').disabled=!T.d.kelas.length; $('#aTambah').disabled=!T.d.kelas.length;
+  T.anggota=[]; renderAnggota(true);
+  if(!sel.value) { renderAnggota(false); return; }
+  await kerja(null,async function(){ var id=sel.value,r=await g('daftarAnggota',id); if(r&&r.ok&&$('#aKelas').value===id){ T.anggota=r.anggota; renderAnggota(false); } });
+}
+function renderAnggota(memuat){
+  var ol=$('#aDaftar'); ol.textContent='';
+  $('#aInfo').textContent=T.anggota.length?T.anggota.filter(function(m){return m.wajah;}).length+' dari '+T.anggota.length+' punya data wajah':'';
+  if(memuat){ ol.appendChild(h('li',{class:'empty'},'Memuat anggota')); return; }
+  if(!T.anggota.length) ol.appendChild(h('li',{class:'empty'},T.d.kelas.length?'Belum ada anggota di kelas ini.':'Buat kelas dulu.'));
+  T.anggota.forEach(function(m,i){
+    ol.appendChild(h('li',{class:'row srow','data-id':m.id},h('span',{class:'no'},String(i+1)),
+      h('div',{class:'who'},h('span',{class:'nm'},m.nama),h('span',{class:'meta'},(m.nis?'NIS/NIM '+m.nis+' · ':'')+(m.wajah?'Wajah terdaftar':'Wajah belum terdaftar'))),
+      m.wajah?h('button',{type:'button',class:'btn small','data-id':m.id},'Ubah')
+        :h('button',{type:'button',class:'btn small primary','data-id':m.id,'data-aksi':'daftar'},'Daftarkan wajah')));
+  });
+  var belum=T.anggota.filter(function(m){return !m.wajah;}).length;
+  $('#aBeruntun').disabled=memuat||!belum;
+  $('#aBeruntun').textContent=belum?'Daftarkan wajah berurutan ('+belum+' belum)':'Semua wajah sudah terdaftar';
+}
+async function daftarkan(m,btn){
+  await kerja(btn,async function(){
+    var s=await kamera({n:3,judul:'Daftarkan wajah: '+m.nama,foto:true});
+    var r=await g('daftarWajah',m.id,s); if(!hasilOk(r)) return;
+    toast('Wajah '+m.nama+' terdaftar.'); await muatDasbor(); await muatAnggota();
+  });
+}
+$('#aBeruntun').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var antre=T.anggota.filter(function(m){return !m.wajah;}),ok=0,i=0;
+  while(i<antre.length){
+    var m=antre[i],s;
+    try{ s=await kamera({n:3,judul:'Daftarkan wajah '+(i+1)+' dari '+antre.length+': '+m.nama,foto:true,lewati:true}); }
+    catch(err){ if(err&&err.message==='LEWATI'){ i++; continue; } if(err&&err.message==='BATAL') break; throw err; }
+    var r=await g('daftarWajah',m.id,s);
+    if(r&&r.ok){ ok++; i++; }
+    else { toast(((r&&r.pesan)||'Gagal menyimpan.')+' Ulangi atau lewati.'); await jeda(1500); }
+  }
+  toast(ok+' wajah didaftarkan.'); await muatDasbor(); await muatAnggota();
+}); });
+$('#aKelas').addEventListener('change',function(e){ lsSet('absen.kelas',e.target.value); muatAnggota(); });
+$('#aTambah').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var id=$('#aKelas').value,ta=$('#aBaru'); if(!id) return;
+  var r=await g('tambahAnggota',id,ta.value); if(!hasilOk(r)) return;
+  ta.value=''; toast(r.jumlah+' anggota ditambahkan.'); await muatDasbor(); await muatAnggota();
+}); });
+$('#aDaftar').addEventListener('click',function(e){
+  var b=e.target.closest('button[data-aksi="daftar"]');
+  if(b){ var m=T.anggota.filter(function(x){return x.id===b.getAttribute('data-id');})[0]; if(m) daftarkan(m,b); return; }
+  var li=e.target.closest('[data-id]'); if(li) lembarAnggota(li.getAttribute('data-id'));
+});
+$('#aKelasBaru').addEventListener('click',function(){
+  var nama=h('input',{id:'edKelasBaru',type:'text',maxlength:'40',placeholder:'mis. XI AKL 1'});
+  bukaLembar('Kelas baru',h('div',{class:'view'},h('div',{class:'fgroup'},h('label',{class:'field',for:'edKelasBaru'},'Nama kelas'),nama),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){ kerja(e.currentTarget,async function(){
+      var r=await g('tambahKelas',nama.value); if(!hasilOk(r)) return;
+      tutupLembar(); lsSet('absen.kelas',r.id); await muatDasbor(); $('#aKelas').value=''; await muatAnggota(); toast('Kelas dibuat.');
+    }); }},'Buat kelas'))));
+});
+$('#aUbahKelas').addEventListener('click',function(){
+  var k=kelasTerpilih(); if(!k) return;
+  var nama=h('input',{id:'edKelas',type:'text',maxlength:'40',value:k.nama});
+  bukaLembar('Ubah kelas',h('div',{class:'view'},h('div',{class:'fgroup'},h('label',{class:'field',for:'edKelas'},'Nama kelas'),nama),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){ kerja(e.currentTarget,async function(){
+      var r=await g('ubahKelas',k.id,nama.value); if(!hasilOk(r)) return; tutupLembar(); await muatDasbor(); await muatAnggota(); toast('Nama kelas disimpan.');
+    }); }},'Simpan'),h('button',{type:'button',class:'btn danger',onclick:function(e){
+      if(!window.confirm('Hapus kelas '+k.nama+' beserta semua anggota, pertemuan, dan catatan kehadirannya?')) return;
+      kerja(e.currentTarget,async function(){ var r=await g('hapusKelas',k.id); if(!hasilOk(r)) return; tutupLembar(); lsSet('absen.kelas',null); await muatDasbor(); $('#aKelas').value=''; await muatAnggota(); toast('Kelas dihapus.'); });
+    }},'Hapus kelas'))));
+});
+function lembarAnggota(id){
+  var m=T.anggota.filter(function(x){return x.id===id;})[0]; if(!m) return;
+  var nama=h('input',{id:'edNama',type:'text',maxlength:'80',value:m.nama}),nis=h('input',{id:'edNis',type:'text',maxlength:'30',value:m.nis,inputmode:'numeric'});
+  bukaLembar(m.nama,h('div',{class:'view'},
+    h('p',{class:'hint'},m.wajah?'Wajah terdaftar'+(m.wajahTgl?' sejak '+tglPanjang(m.wajahTgl.slice(0,10)):'')+'. Daftar ulang bila wajahnya sering tidak dikenali atau ternyata salah orang.':'Wajah belum terdaftar. Anggota ini belum bisa absen dengan wajah sampai Anda mendaftarkannya.'),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(){ tutupLembar(); daftarkan(m,null); }},m.wajah?'Daftar ulang wajah':'Daftarkan wajah')),
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edNama'},'Nama'),nama),
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edNis'},'NIS / NIM'),nis),
+    h('div',{class:'actions'},
+      h('button',{type:'button',class:'btn primary',onclick:function(e){ kerja(e.currentTarget,async function(){ var r=await g('ubahAnggota',id,nama.value,nis.value); if(!hasilOk(r)) return; tutupLembar(); await muatAnggota(); toast('Data anggota disimpan.'); }); }},'Simpan'),
+      m.wajah?h('button',{type:'button',class:'btn',onclick:function(e){ if(!window.confirm('Hapus data wajah '+m.nama+'?')) return; kerja(e.currentTarget,async function(){ var r=await g('resetWajah',id); if(!hasilOk(r)) return; tutupLembar(); await muatDasbor(); await muatAnggota(); toast('Data wajah dihapus.'); }); }},'Hapus data wajah'):null,
+      h('button',{type:'button',class:'btn danger',onclick:function(e){ if(!window.confirm('Hapus '+m.nama+' beserta catatan kehadirannya?')) return; kerja(e.currentTarget,async function(){ var r=await g('hapusAnggota',id); if(!hasilOk(r)) return; tutupLembar(); await muatDasbor(); await muatAnggota(); toast('Anggota dihapus.'); }); }},'Hapus anggota'))));
+}
+
+/* ---------- rekap ---------- */
+async function muatRekap(gantiKelas){
+  var sel=$('#rKelas'),lama=sel.value||lsGet('absen.kelas')||'';
+  isiPilihan(sel,T.d.kelas.length?T.d.kelas.map(function(k){return {nilai:k.id,nama:k.nama};}):[{nilai:'',nama:'Belum ada kelas'}],lama);
+  if(gantiKelas) $('#rBulan').value='';
+  var id=sel.value,bulan=$('#rBulan').value;
+  $('#rBuka').hidden=true; $('#rWrap').textContent=''; $('#rSheet').disabled=true;
+  if(!id){ $('#rKepala').textContent='Buat kelas dulu di menu Anggota.'; return; }
+  $('#rKepala').textContent='Memuat rekap';
+  await kerja(null,async function(){
+    var r=await g('rekap',id,bulan); if(!hasilOk(r)){ $('#rKepala').textContent=''; return; }
+    if($('#rKelas').value!==id) return;
+    T.rekap=r.data; renderRekap();
+  });
+}
+function renderRekap(){
+  var d=T.rekap,wrap=$('#rWrap'); wrap.textContent=''; if(!d) return;
+  isiPilihan($('#rBulan'),[{nilai:'',nama:'Semua pertemuan'}].concat(d.bulanAda),d.bulan);
+  var ns=d.sesi.length;
+  $('#rKepala').textContent='Pendidik: '+d.pendidik+' · '+(ns?ns+' pertemuan, pendidik hadir '+d.guruHadir+' kali. Persen hadir dihitung dari jumlah pertemuan.':'Belum ada pertemuan pada periode ini.');
+  $('#rSheet').disabled=!ns;
+  if(!ns) return;
+  var tb=h('table',null,h('thead',null,h('tr',null,h('th',{scope:'col'},'No'),h('th',{class:'l',scope:'col'},'Nama'),
+    d.sesi.map(function(s){return h('th',{scope:'col'},h('button',{type:'button',title:'Buka daftar hadir pertemuan ke-'+s.ke,onclick:function(){ kerja(null,function(){return bukaSesi(s.kode,'rekap');}); }},'P'+s.ke,h('br'),tglPendek(s.tanggal)));}),
+    ['H','S','I','A','%'].map(function(c){return h('th',{scope:'col'},c);}))));
+  var body=h('tbody');
+  d.baris.forEach(function(b){
+    body.appendChild(h('tr',null,h('td',{class:'dim'},String(b.no)),h('td',{class:'l'},b.nama),
+      b.st.map(function(x){return h('td',{class:x?'c'+x:'dim'},x||'-');}),
+      h('td',{class:'sum'},String(b.H)),h('td',{class:'sum'},String(b.S)),h('td',{class:'sum'},String(b.I)),h('td',{class:'sum'},String(b.A)),h('td',{class:'sum'},b.persen+'%')));
+  });
+  body.appendChild(h('tr',{class:'guru'},h('td',null,''),h('td',{class:'l'},'Pendidik'),
+    d.sesi.map(function(s){return h('td',{class:s.guru?'cH':'dim'},s.guru||'-');}),
+    h('td',null,String(d.guruHadir)),h('td',null,''),h('td',null,''),h('td',null,''),h('td',null,Math.round(d.guruHadir/ns*100)+'%')));
+  tb.appendChild(body); wrap.appendChild(tb);
+}
+$('#rKelas').addEventListener('change',function(e){ lsSet('absen.kelas',e.target.value); muatRekap(true); });
+$('#rBulan').addEventListener('change',function(){ muatRekap(false); });
+$('#rSheet').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var r=await g('buatRekapSheet',$('#rKelas').value,$('#rBulan').value); if(!hasilOk(r)) return;
+  var a=$('#rBuka'); a.href=r.url; a.hidden=false; toast('Rekap dibuat di lembar "'+r.nama+'". Ketuk Buka rekap.');
+}); });
+
+/* ---------- akun ---------- */
+function renderAkun(){
+  var d=T.d; if(!d) return;
+  $('#kNama').value=d.pendidik; $('#kSekolah').value=d.sekolah;
+  var a=$('#kAmbang'),cocok=['0.44','0.5','0.56'].filter(function(v){return Math.abs(Number(v)-d.ambang)<0.001;})[0]; a.value=cocok||'0.5';
+  $('#kBuku').href=d.bukuUrl; $('#kResetWajah').disabled=!d.punyaWajahPendidik;
+}
+$('#kSimpan').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var o={namaPendidik:$('#kNama').value,sekolah:$('#kSekolah').value,ambang:Number($('#kAmbang').value)};
+  var r=await g('simpanPengaturan',o);
+  if(!hasilOk(r)) return; await muatDasbor(); renderAkun(); toast('Pengaturan disimpan.');
+}); });
+$('#kSandi').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var r=await g('gantiSandi',$('#kLama').value,$('#kBaru').value); if(!hasilOk(r)) return;
+  $('#kLama').value=''; $('#kBaru').value=''; toast('Kata sandi diganti.');
+}); });
+$('#kResetWajah').addEventListener('click',function(e){
+  if(!window.confirm('Hapus data wajah pendidik? Pindai berikutnya akan mendaftarkan wajah lagi.')) return;
+  kerja(e.currentTarget,async function(){ var r=await g('resetWajahPendidik'); if(!hasilOk(r)) return; await muatDasbor(); renderAkun(); toast('Data wajah pendidik dihapus.'); });
+});
+$('#kKeluar').addEventListener('click',function(){ var t=T.token; keluarLokal(''); if(t) api('keluar',t).catch(function(){}); });
+
+/* ---------- lembar (dialog) ---------- */
+var dlg=$('#dlg');
+function bukaLembar(judul,node){ $('#dlgJudul').textContent=judul; var b=$('#dlgIsi'); b.textContent=''; b.appendChild(node); if(dlg.showModal){ if(!dlg.open) dlg.showModal(); } else dlg.setAttribute('open',''); }
+function tutupLembar(){ if(dlg.close&&dlg.open) dlg.close(); else dlg.removeAttribute('open'); }
+dlg.addEventListener('click',function(e){ if(e.target===dlg) tutupLembar(); });
+$('#dlgTutup').addEventListener('click',tutupLembar);
+
+/* =====================================================================
+   ANGGOTA
+   ===================================================================== */
+var M={kode:null,info:null};
+function pesanAnggota(judul,isi){ var p=$('#mPesan'); p.textContent=''; p.appendChild(h('h2',null,judul)); if(isi) p.appendChild(h('p',{class:'hint'},isi)); p.hidden=false; }
+function perangkat(){
+  var id=lsGet('absen.perangkat')||'';
+  if(!/^[A-Za-z0-9]{8,40}$/.test(id)){
+    var huruf='abcdefghijkmnpqrstuvwxyz23456789',acak=new Uint32Array(16),i; id='';
+    crypto.getRandomValues(acak); for(i=0;i<16;i++) id+=huruf.charAt(acak[i]%huruf.length);
+    lsSet('absen.perangkat',id);
+  }
+  return id;
+}
+async function mulaiSiswa(kode){
+  M.kode=kode; layar('layarSiswa'); pesanAnggota('Memuat pertemuan','');
+  var r;
+  try{ r=await api('infoPertemuan',kode); }catch(e){ pesanAnggota('Server belum bisa dijangkau','Periksa internet, lalu muat ulang halaman ini.'); return; }
+  if(!r||!r.ok){ pesanAnggota('Tautan tidak bisa dipakai',(r&&r.pesan)||'Minta tautan baru ke pendidik.'); return; }
+  M.info=r;
+  $('#mKelas').textContent='Absensi '+r.sesi.kelas;
+  $('#mSub').textContent=['Pertemuan ke-'+r.sesi.ke,tglPanjang(r.sesi.tanggal)+(r.sesi.jamMulai?', pukul '+r.sesi.jamMulai+(r.sesi.jamSelesai?'–'+r.sesi.jamSelesai:''):''),r.pendidik?'Pendidik: '+r.pendidik:'',r.sekolah].filter(Boolean).join(' · ');
+  if(!r.sesi.buka){ pesanAnggota('Pertemuan sudah ditutup','Absensi lewat tautan ini tidak bisa dilakukan lagi. Hubungi pendidik bila kehadiran Anda belum tercatat.'); return; }
+  if(!r.terdaftar){ pesanAnggota('Wajah belum didaftarkan','Pendidik belum mendaftarkan wajah anggota kelas ini. Minta pendidik mendaftarkan wajah Anda lebih dulu.'); return; }
+  $('#mPesan').hidden=true; $('#mAksi').hidden=false;
+  absenSaya();
+}
+async function absenSaya(){
+  var btn=$('#mPindai'),stat=$('#mStatus'); if(btn.disabled) return;
+  function status(t,err){ stat.textContent=t; stat.className='progress'+(err?' err':''); }
+  btn.disabled=true; status('');
+  try{
+    var sampel=await kamera({n:1,judul:'Pindai wajah Anda',foto:false});
+    status('Mencocokkan wajah');
+    var r=null,coba;
+    for(coba=0;coba<2;coba++){
+      r=await api('absenWajah',M.kode,sampel,perangkat());
+      if(r&&!r.ok&&/ramai/.test(r.pesan||'')&&coba===0){ status('Server sedang ramai, mencoba lagi'); await jeda(2500); continue; }
+      break;
+    }
+    if(r&&r.ok){ tampilSukses(r); return; }
+    status((r&&r.pesan)||'Tidak berhasil. Coba lagi.',true);
+  }catch(e){
+    var k=e&&e.message;
+    if(k==='BATAL') status('Pindai dibatalkan. Ketuk Pindai wajah untuk mencoba lagi.');
+    else if(k==='KAMERA') status('Kamera tidak bisa dibuka. Izinkan akses kamera untuk halaman ini, atau buka tautan di Chrome atau Safari. Bila tetap gagal, minta pendidik memindai wajah Anda.',true);
+    else if(k==='MESIN') status('Mesin wajah gagal dimuat. Periksa internet, lalu coba lagi.',true);
+    else status('Terjadi gangguan. Periksa internet lalu coba lagi.',true);
+  }finally{ btn.disabled=false; btn.textContent='Pindai lagi'; }
+}
+$('#mPindai').addEventListener('click',absenSaya);
+function tampilSukses(r){
+  $('#mAksi').hidden=true;
+  var s=$('#mSukses'); s.textContent=''; s.hidden=false;
+  var c=h('div',{class:'centang','aria-hidden':'true'}); c.innerHTML='<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  s.appendChild(c);
+  s.appendChild(h('p',{class:'besar'},r.sudah?'Sudah tercatat hadir':'Hadir tercatat'));
+  s.appendChild(h('span',{class:'field'},'Dikenali sebagai'));
+  s.appendChild(h('p',{class:'besar'},r.nama));
+  if(r.nis) s.appendChild(h('p',{class:'nm'},'NIS/NIM '+r.nis));
+  s.appendChild(h('p',{class:'hint'},M.info.sesi.kelas+', pertemuan ke-'+M.info.sesi.ke+(r.jam?', pukul '+r.jam:'')+'.'));
+  s.appendChild(h('p',{class:'hint'},'Bukan nama Anda? Segera beri tahu pendidik agar dikoreksi.'));
+  window.scrollTo(0,0);
+}
+
+/* ---------- mulai ---------- */
+function mulai(){
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(String(window.API_URL||''))){
+    $('#muat').textContent=''; $('#muat').appendChild(h('div',{class:'card masuk'},h('h1',null,'Belum tersambung'),
+      h('p',{class:'hint'},'Buka index.html, cari baris var API_URL, lalu tempel URL aplikasi web Apps Script yang berakhiran /exec.')));
+    return;
+  }
+  var p='';
+  try{ p=new URLSearchParams(location.search).get('p')||''; }catch(e){}
+  p=p.trim().toUpperCase();
+  if(p) mulaiSiswa(p); else mulaiGuru();
+}
+mulai();
+})();
+</script>
+</body>
+</html>
