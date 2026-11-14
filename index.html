@@ -207,6 +207,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
         <div class="actions"><a class="btn" id="sWa" target="_blank" rel="noopener">Kirim lewat WhatsApp</a><button type="button" class="btn" id="sQrBtn">Tampilkan kode QR</button></div>
         <div id="sQr" class="qr" hidden></div>
         <p class="hint">Anggota membuka tautan di HP masing-masing. Kamera langsung memindai wajah, lalu nama dikenali dan dicatat hadir otomatis. Tautan hanya berlaku hari ini selama pertemuan dibuka.</p>
+        <p class="hint" id="sLokasi"></p>
       </div>
       <div class="card">
         <h2>Pindai wajah anggota dari HP ini</h2>
@@ -268,6 +269,15 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
         <div class="actions"><button type="button" class="btn primary" id="kSimpan">Simpan</button></div>
       </div>
       <div class="card">
+        <h2>Lokasi absen</h2>
+        <p class="hint">Bila ada lokasi terdaftar, absen wajah lewat tautan dan absen wajah pendidik hanya diterima saat HP berada dalam radius lokasi itu. Hapus semua lokasi untuk mematikan pembatasan.</p>
+        <ul class="plain" id="lDaftar"></ul>
+        <div class="fgroup"><label class="field" for="lRadius">Radius</label>
+          <select id="lRadius"><option value="30">30 meter</option><option value="50">50 meter</option><option value="75">75 meter</option><option value="100">100 meter</option><option value="200">200 meter</option></select></div>
+        <div class="actions"><button type="button" class="btn primary" id="lSini">Tambah dari posisi saya sekarang</button><button type="button" class="btn" id="lManual">Tambah dengan koordinat</button></div>
+        <p class="hint">Daftarkan lokasi saat Anda berdiri di tengah ruang kelas atau gedung. Untuk memakai lokasi berbeda per kelas, pilih lokasinya di menu Anggota, Ubah kelas.</p>
+      </div>
+      <div class="card">
         <h2>Ganti kata sandi</h2>
         <div class="fgroup"><label class="field" for="kLama">Kata sandi lama</label><input id="kLama" type="password" autocomplete="current-password"></div>
         <div class="fgroup"><label class="field" for="kBaru">Kata sandi baru (minimal 8 karakter)</label><input id="kBaru" type="password" autocomplete="new-password"></div>
@@ -296,7 +306,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
       <div class="card" id="mPesan" hidden></div>
       <div class="card" id="mAksi" hidden>
         <h2>Absen dengan wajah</h2>
-        <p class="hint">Kamera terbuka otomatis dan wajah Anda dikenali tanpa perlu memilih nama. Hadapkan wajah lurus ke kamera, di tempat yang terang, tanpa masker.</p>
+        <p class="hint">Kamera terbuka otomatis dan wajah Anda dikenali tanpa perlu memilih nama. Bila diminta, izinkan akses lokasi dan kamera. Hadapkan wajah lurus ke kamera, di tempat yang terang, tanpa masker.</p>
         <p class="progress" id="mStatus" role="status" aria-live="polite"></p>
         <div class="actions"><button type="button" class="btn primary" id="mPindai">Pindai wajah</button></div>
       </div>
@@ -330,7 +340,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
 
 <script>
 /* ===== WAJIB DIISI: URL aplikasi web Apps Script (berakhiran /exec) ===== */
-var API_URL = 'https://script.google.com/macros/s/AKfycbyx5GPy1q7x2zaCW9nueaZQy2I_aQ18gS0R7ysCIoKY4WXFCeo4NrplxIJVDGEDSXOt/exec';
+var API_URL = 'https://script.google.com/macros/s/AKfycbyeMloQCKc6_4Spow03PlMbQADGuLIQnRU3hQqqyQ4T90DKRuf1CsS_B-PRcSzzoJqveQ/exec';
 </script>
 <script>
 (function(){
@@ -417,6 +427,14 @@ async function deteksi(sumber,ukuran){
   var f=window.faceapi;
   return await f.detectSingleFace(sumber,new f.TinyFaceDetectorOptions({inputSize:ukuran,scoreThreshold:0.5})).withFaceLandmarks().withFaceDescriptor();
 }
+function ambilLokasi(){
+  return new Promise(function(res,rej){
+    if(!navigator.geolocation) return rej(new Error('LOKASI_GAGAL'));
+    navigator.geolocation.getCurrentPosition(function(p){ res({lat:p.coords.latitude,lng:p.coords.longitude,akurasi:Math.round(p.coords.accuracy)}); },
+      function(e){ rej(new Error(e&&e.code===1?'LOKASI_TOLAK':'LOKASI_GAGAL')); },{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+  });
+}
+var PESAN_LOKASI={LOKASI_TOLAK:'Izin lokasi ditolak. Izinkan akses lokasi untuk halaman ini di pengaturan peramban, lalu coba lagi.',LOKASI_GAGAL:'Lokasi HP tidak bisa dibaca. Nyalakan Lokasi/GPS di HP, lalu coba lagi.'};
 function jarakKlien(a,b){var s=0,i,d;for(i=0;i<128;i++){d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);}
 /**
  * Kamera wajah.
@@ -589,12 +607,13 @@ $('#dSegar').addEventListener('click',function(e){ kerja(e.currentTarget,async f
 
 async function absenGuru(kode,denganWajah,btn){
   await kerja(btn,async function(){
-    var sampel=null;
+    var sampel=null,lok=null;
     if(denganWajah){
+      if(T.d.lokasi&&T.d.lokasi.length){ try{ lok=await ambilLokasi(); }catch(err){ toast(PESAN_LOKASI[err.message]||PESAN_LOKASI.LOKASI_GAGAL); return; } }
       var punya=T.sesi&&T.tab==='sesi'?T.sesi.punyaWajahPendidik:T.d.punyaWajahPendidik;
       sampel=await kamera({n:punya?1:3,judul:punya?'Pindai wajah pendidik':'Daftarkan wajah pendidik',foto:true});
     }
-    var r=await g('absenPendidik',kode,sampel,false); if(!hasilOk(r)) return;
+    var r=await g('absenPendidik',kode,sampel,false,lok); if(!hasilOk(r)) return;
     toast(r.via==='daftar'?'Wajah Anda didaftarkan dan kehadiran tercatat.':'Kehadiran Anda tercatat pukul '+r.jam+'.');
     await segarkanSemua();
   });
@@ -625,7 +644,8 @@ function renderSesi(){
   $('#sBagi').hidden=!s.buka;
   if(s.buka){
     var inp=$('#sTautan'); if(inp.value!==d.tautan) inp.value=d.tautan;
-    $('#sWa').href='https://wa.me/?text='+encodeURIComponent('Absensi '+s.kelas+' pertemuan ke-'+s.ke+', '+tglPanjang(s.tanggal)+'. Buka tautan ini, pilih nama Anda, lalu pindai wajah: '+d.tautan);
+    $('#sLokasi').textContent=d.lokasi&&d.lokasi.wajib?'Absen lewat tautan hanya diterima dalam radius '+d.lokasi.radius+' m dari '+d.lokasi.tempat.join(' atau ')+'.':'Lokasi absen belum diatur, jadi tautan bisa dipakai dari mana saja. Atur di menu Akun.';
+    $('#sWa').href='https://wa.me/?text='+encodeURIComponent('Absensi '+s.kelas+' pertemuan ke-'+s.ke+', '+tglPanjang(s.tanggal)+'. Buka tautan ini lalu pindai wajah Anda'+(d.lokasi&&d.lokasi.wajib?' di '+d.lokasi.tempat.join(' / '):'')+': '+d.tautan);
   }
   var gk=$('#sGuru'); gk.textContent='';
   gk.appendChild(h('span',{class:'field'},'Absen pendidik'));
@@ -651,7 +671,7 @@ function renderSesi(){
   d.anggota.forEach(function(m,i){
     var st=ST[m.status]?m.status:'';
     ol.appendChild(h('li',{class:'row'+(st?' is-'+st:'')},h('span',{class:'no'},String(i+1)),
-      h('div',{class:'who'},h('span',{class:'nm'},m.nama),h('span',{class:'meta'},st?ST[st]+' '+m.jam+', '+(VIA[m.via]||'manual'):'Belum absen'+(m.wajah?'':', wajah belum terdaftar'))),
+      h('div',{class:'who'},h('span',{class:'nm'},m.nama),h('span',{class:'meta'},st?ST[st]+' '+m.jam+', '+(VIA[m.via]||'manual')+(m.lokasi?' · '+m.lokasi:''):'Belum absen'+(m.wajah?'':', wajah belum terdaftar'))),
       h('div',{class:'seg',role:'group','aria-label':'Status '+m.nama},Object.keys(ST).map(function(c){return h('button',{type:'button',class:'st st-'+c,'aria-pressed':String(st===c),'aria-label':ST[c],'data-id':m.id,'data-st':c},c);}))));
   });
   $('#sTutup').textContent=s.status==='buka'?'Tutup pertemuan':'Buka lagi';
@@ -783,10 +803,13 @@ $('#aKelasBaru').addEventListener('click',function(){
 });
 $('#aUbahKelas').addEventListener('click',function(){
   var k=kelasTerpilih(); if(!k) return;
-  var nama=h('input',{id:'edKelas',type:'text',maxlength:'40',value:k.nama});
+  var nama=h('input',{id:'edKelas',type:'text',maxlength:'40',value:k.nama}),daftarLok=T.d.lokasi||[];
+  var lok=h('select',{id:'edLokasi'},h('option',{value:''},daftarLok.length?'Semua lokasi terdaftar':'Belum ada lokasi (atur di menu Akun)'),
+    daftarLok.map(function(t){return h('option',{value:t.id,selected:t.id===k.lokasi},t.nama);}));
   bukaLembar('Ubah kelas',h('div',{class:'view'},h('div',{class:'fgroup'},h('label',{class:'field',for:'edKelas'},'Nama kelas'),nama),
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edLokasi'},'Lokasi absen kelas ini'),lok),
     h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){ kerja(e.currentTarget,async function(){
-      var r=await g('ubahKelas',k.id,nama.value); if(!hasilOk(r)) return; tutupLembar(); await muatDasbor(); await muatAnggota(); toast('Nama kelas disimpan.');
+      var r=await g('ubahKelas',k.id,nama.value,lok.value); if(!hasilOk(r)) return; tutupLembar(); await muatDasbor(); await muatAnggota(); toast('Kelas disimpan.');
     }); }},'Simpan'),h('button',{type:'button',class:'btn danger',onclick:function(e){
       if(!window.confirm('Hapus kelas '+k.nama+' beserta semua anggota, pertemuan, dan catatan kehadirannya?')) return;
       kerja(e.currentTarget,async function(){ var r=await g('hapusKelas',k.id); if(!hasilOk(r)) return; tutupLembar(); lsSet('absen.kelas',null); await muatDasbor(); $('#aKelas').value=''; await muatAnggota(); toast('Kelas dihapus.'); });
@@ -855,7 +878,49 @@ function renderAkun(){
   $('#kNama').value=d.pendidik; $('#kSekolah').value=d.sekolah;
   var a=$('#kAmbang'),cocok=['0.44','0.5','0.56'].filter(function(v){return Math.abs(Number(v)-d.ambang)<0.001;})[0]; a.value=cocok||'0.5';
   $('#kBuku').href=d.bukuUrl; $('#kResetWajah').disabled=!d.punyaWajahPendidik;
+  renderLokasi();
 }
+function renderLokasi(){
+  var d=T.d,ul=$('#lDaftar'); ul.textContent='';
+  var r=$('#lRadius'),rv=String(d.radius||50); if(!Array.prototype.some.call(r.options,function(o){return o.value===rv;})) r.appendChild(h('option',{value:rv},rv+' meter')); r.value=rv;
+  if(!d.lokasi.length) ul.appendChild(h('li',{class:'empty'},'Belum ada lokasi. Absen bisa dilakukan dari mana saja.'));
+  d.lokasi.forEach(function(t){
+    ul.appendChild(h('li',null,h('div',{class:'who'},h('span',{class:'nm'},t.nama),
+      h('a',{class:'meta',href:'https://www.google.com/maps?q='+t.lat+','+t.lng,target:'_blank',rel:'noopener'},t.lat+', '+t.lng+' · lihat di peta')),
+      h('button',{type:'button',class:'btn small danger',onclick:function(e){
+        if(!window.confirm('Hapus lokasi '+t.nama+'?')) return;
+        simpanLok(d.lokasi.filter(function(x){return x.id!==t.id;}),e.currentTarget,'Lokasi dihapus.');
+      }},'Hapus')));
+  });
+}
+async function simpanLok(daftar,btn,pesan){
+  await kerja(btn,async function(){
+    var r=await g('simpanLokasi',daftar,Number($('#lRadius').value)); if(!hasilOk(r)) return false;
+    tutupLembar(); await muatDasbor(); renderAkun(); toast(pesan);
+  });
+}
+function lembarLokasi(lat,lng,akurasi){
+  var nama=h('input',{id:'edLokNama',type:'text',maxlength:'60',placeholder:'mis. Kampus UGKMB'});
+  var koor=h('input',{id:'edLokKoor',type:'text',inputmode:'decimal',spellcheck:'false',placeholder:'-1.700000, 103.100000',value:lat!=null?lat.toFixed(6)+', '+lng.toFixed(6):''});
+  bukaLembar('Tambah lokasi',h('div',{class:'view'},
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edLokNama'},'Nama lokasi'),nama),
+    h('div',{class:'fgroup'},h('label',{class:'field',for:'edLokKoor'},'Koordinat (lintang, bujur)'),koor),
+    h('p',{class:'hint'},akurasi!=null?'Ketepatan GPS saat ini sekitar '+akurasi+' m.'+(akurasi>30?' Agak kasar; sebaiknya tunggu sebentar lalu ambil ulang di tempat terbuka.':''):'Salin koordinat dari Google Maps: tekan lama titik lokasinya, lalu salin angka yang muncul.'),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(e){
+      var p=koor.value.split(/[,\s]+/).filter(Boolean).map(Number);
+      if(!nama.value.trim()){ toast('Tulis nama lokasi dulu.'); return; }
+      if(p.length!==2||!isFinite(p[0])||!isFinite(p[1])||Math.abs(p[0])>90||Math.abs(p[1])>180){ toast('Koordinat tidak valid. Contoh: -1.700000, 103.100000'); return; }
+      simpanLok(T.d.lokasi.concat([{nama:nama.value,lat:p[0],lng:p[1]}]),e.currentTarget,'Lokasi '+nama.value.trim()+' ditambahkan.');
+    }},'Simpan lokasi'))));
+  setTimeout(function(){ nama.focus(); },50);
+}
+$('#lSini').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  toast('Membaca lokasi HP, tunggu sebentar.');
+  var p; try{ p=await ambilLokasi(); }catch(err){ toast(PESAN_LOKASI[err.message]||PESAN_LOKASI.LOKASI_GAGAL); return; }
+  lembarLokasi(p.lat,p.lng,p.akurasi);
+}); });
+$('#lManual').addEventListener('click',function(){ lembarLokasi(null,null,null); });
+$('#lRadius').addEventListener('change',function(e){ simpanLok(T.d.lokasi,null,'Radius disimpan.'); });
 $('#kSimpan').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
   var o={namaPendidik:$('#kNama').value,sekolah:$('#kSekolah').value,ambang:Number($('#kAmbang').value)};
   var r=await g('simpanPengaturan',o);
@@ -901,6 +966,7 @@ async function mulaiSiswa(kode){
   $('#mKelas').textContent='Absensi '+r.sesi.kelas;
   $('#mSub').textContent=['Pertemuan ke-'+r.sesi.ke,tglPanjang(r.sesi.tanggal)+(r.sesi.jamMulai?', pukul '+r.sesi.jamMulai+(r.sesi.jamSelesai?'–'+r.sesi.jamSelesai:''):''),r.pendidik?'Pendidik: '+r.pendidik:'',r.sekolah].filter(Boolean).join(' · ');
   if(!r.sesi.buka){ pesanAnggota('Pertemuan sudah ditutup','Absensi lewat tautan ini tidak bisa dilakukan lagi. Hubungi pendidik bila kehadiran Anda belum tercatat.'); return; }
+  if(r.lokasi&&r.lokasi.wajib) $('#mSub').textContent+=' · Absen di '+r.lokasi.tempat.join(' / ')+' (radius '+r.lokasi.radius+' m)';
   if(!r.terdaftar){ pesanAnggota('Wajah belum didaftarkan','Pendidik belum mendaftarkan wajah anggota kelas ini. Minta pendidik mendaftarkan wajah Anda lebih dulu.'); return; }
   $('#mPesan').hidden=true; $('#mAksi').hidden=false;
   absenSaya();
@@ -910,11 +976,19 @@ async function absenSaya(){
   function status(t,err){ stat.textContent=t; stat.className='progress'+(err?' err':''); }
   btn.disabled=true; status('');
   try{
+    var lok=null;
+    if(M.info.lokasi&&M.info.lokasi.wajib){
+      status('Memeriksa lokasi Anda');
+      lok=await ambilLokasi();
+      var c=await api('cekLokasi',M.kode,lok);
+      if(!c||!c.ok){ status((c&&c.pesan)||'Lokasi tidak sesuai.',true); return; }
+      status('Lokasi sesuai: '+c.teks);
+    }
     var sampel=await kamera({n:1,judul:'Pindai wajah Anda',foto:false});
     status('Mencocokkan wajah');
     var r=null,coba;
     for(coba=0;coba<2;coba++){
-      r=await api('absenWajah',M.kode,sampel,perangkat());
+      r=await api('absenWajah',M.kode,sampel,perangkat(),lok);
       if(r&&!r.ok&&/ramai/.test(r.pesan||'')&&coba===0){ status('Server sedang ramai, mencoba lagi'); await jeda(2500); continue; }
       break;
     }
@@ -925,6 +999,7 @@ async function absenSaya(){
     if(k==='BATAL') status('Pindai dibatalkan. Ketuk Pindai wajah untuk mencoba lagi.');
     else if(k==='KAMERA') status('Kamera tidak bisa dibuka. Izinkan akses kamera untuk halaman ini, atau buka tautan di Chrome atau Safari. Bila tetap gagal, minta pendidik memindai wajah Anda.',true);
     else if(k==='MESIN') status('Mesin wajah gagal dimuat. Periksa internet, lalu coba lagi.',true);
+    else if(PESAN_LOKASI[k]) status(PESAN_LOKASI[k],true);
     else status('Terjadi gangguan. Periksa internet lalu coba lagi.',true);
   }finally{ btn.disabled=false; btn.textContent='Pindai lagi'; }
 }
@@ -938,7 +1013,7 @@ function tampilSukses(r){
   s.appendChild(h('span',{class:'field'},'Dikenali sebagai'));
   s.appendChild(h('p',{class:'besar'},r.nama));
   if(r.nis) s.appendChild(h('p',{class:'nm'},'NIS/NIM '+r.nis));
-  s.appendChild(h('p',{class:'hint'},M.info.sesi.kelas+', pertemuan ke-'+M.info.sesi.ke+(r.jam?', pukul '+r.jam:'')+'.'));
+  s.appendChild(h('p',{class:'hint'},M.info.sesi.kelas+', pertemuan ke-'+M.info.sesi.ke+(r.jam?', pukul '+r.jam:'')+'.'+(r.lokasi?' Lokasi: '+r.lokasi+'.':'')));
   s.appendChild(h('p',{class:'hint'},'Bukan nama Anda? Segera beri tahu pendidik agar dikoreksi.'));
   window.scrollTo(0,0);
 }
