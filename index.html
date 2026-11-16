@@ -80,7 +80,11 @@ input.vh:focus-visible + label.btn{outline:2px solid var(--accent);outline-offse
 .meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .empty{color:var(--muted);font-size:14px}
 .tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;background:var(--paper);color:var(--muted)}
-.tag.H{background:var(--hadir-bg);color:var(--hadir)} .tag.A{background:var(--alpa-bg);color:var(--alpa)}
+.tag.H{background:var(--hadir-bg);color:var(--hadir)}
+.slotbaru{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.slotbaru label:first-child{grid-column:1/-1}
+.slotbaru label{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);min-width:0}
+.slotbaru select,.slotbaru input{text-transform:none;letter-spacing:0} .tag.A{background:var(--alpa-bg);color:var(--alpa)}
 
 .bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--line)}
 .bar span{display:block;height:100%}
@@ -187,10 +191,15 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
         <h2>Absen pendidik hari ini</h2>
         <ul class="plain" id="dAbsenGuru"></ul>
       </div>
+      <div class="card" id="dJadwalKartu" hidden>
+        <h2>Jadwal hari ini</h2>
+        <ul class="plain" id="dJadwal"></ul>
+        <p class="hint" id="dJadwalInfo"></p>
+      </div>
       <div class="card">
         <h2>Buka pertemuan hari ini</h2>
         <div class="inline"><select id="dKelas" aria-label="Kelas"></select><button type="button" class="btn primary" id="dBuka">Buka pertemuan</button></div>
-        <p class="hint">Setelah dibuka, bagikan tautannya. Anggota absen dari HP masing-masing dengan memindai wajah.</p>
+        <p class="hint">Untuk pertemuan di luar jadwal. Kelas yang punya jadwal dibuka otomatis; atur jadwal di menu Anggota, Jadwal &amp; tautan tetap.</p>
       </div>
       <div class="card">
         <div class="listhead"><h2>Pertemuan hari ini</h2><button type="button" class="btn small" id="dSegar">Segarkan</button></div>
@@ -206,7 +215,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
         <div class="inline"><input id="sTautan" type="text" readonly aria-label="Tautan absensi"><button type="button" class="btn primary" id="sSalin">Salin</button></div>
         <div class="actions"><a class="btn" id="sWa" target="_blank" rel="noopener">Kirim lewat WhatsApp</a><button type="button" class="btn" id="sQrBtn">Tampilkan kode QR</button></div>
         <div id="sQr" class="qr" hidden></div>
-        <p class="hint">Anggota membuka tautan di HP masing-masing. Kamera langsung memindai wajah, lalu nama dikenali dan dicatat hadir otomatis. Tautan hanya berlaku hari ini selama pertemuan dibuka.</p>
+        <p class="hint">Ini tautan tetap kelas: cukup dibagikan sekali, misalnya disematkan di grup kelas. Tautan selalu mengarah ke pertemuan yang sedang dibuka. Anggota membuka tautan, kamera memindai wajah, lalu nama dikenali dan dicatat hadir otomatis.</p>
         <p class="hint" id="sLokasi"></p>
       </div>
       <div class="card">
@@ -221,6 +230,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
         <ol class="ledger" id="sDaftar"></ol>
       </div>
       <div class="card">
+        <p class="hint" id="sOtomatis" hidden></p>
         <label class="check" for="sAlpa" id="sAlpaLabel"><input type="checkbox" id="sAlpa" checked>Saat menutup, tandai yang belum absen sebagai Alpa</label>
         <div class="actions"><button type="button" class="btn primary" id="sTutup">Tutup pertemuan</button><button type="button" class="btn danger" id="sHapus">Hapus pertemuan</button></div>
       </div>
@@ -229,7 +239,7 @@ dialog::backdrop{background:rgba(10,14,30,.55)}
     <div class="view" id="v-anggota" hidden>
       <div class="card">
         <div class="fgroup"><label class="field" for="aKelas">Kelas</label><select id="aKelas"></select></div>
-        <div class="actions"><button type="button" class="btn small" id="aUbahKelas">Ubah kelas</button><button type="button" class="btn small" id="aKelasBaru">Kelas baru</button></div>
+        <div class="actions"><button type="button" class="btn small primary" id="aJadwal">Jadwal &amp; tautan tetap</button><button type="button" class="btn small" id="aUbahKelas">Ubah kelas</button><button type="button" class="btn small" id="aKelasBaru">Kelas baru</button></div>
       </div>
       <div class="card">
         <h2>Tambah anggota</h2>
@@ -350,7 +360,7 @@ var LIB='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.
 var MODEL='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model';
 var QRLIB='https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
 var ST={H:'Hadir',S:'Sakit',I:'Izin',A:'Alpa'};
-var VIA={wajah:'wajah',pendidik:'wajah, dipindai pendidik',daftar:'wajah, pendaftaran pertama',manual:'manual'};
+var VIA={otomatis:'otomatis, tidak absen',wajah:'wajah',pendidik:'wajah, dipindai pendidik',daftar:'wajah, pendaftaran pertama',manual:'manual'};
 
 /* ---------- alat bantu ---------- */
 function $(s,r){return (r||document).querySelector(s);}
@@ -589,14 +599,32 @@ function renderDasbor(){
           h('button',{type:'button',class:'btn small',onclick:function(e){absenGuru(s.kode,false,e.currentTarget);}},'Tanpa wajah'));
     ag.appendChild(h('li',null,h('div',{class:'who'},h('span',{class:'nm'},s.kelas+', pertemuan ke-'+s.ke),h('span',{class:'meta'},s.guru==='H'?'Tercatat lewat '+(VIA[s.guruVia]||'manual'):'Anda belum absen')),kanan));
   });
+  var jd=$('#dJadwal'); jd.textContent='';
+  $('#dJadwalKartu').hidden=!(d.jadwalHariIni||[]).length;
+  (d.jadwalHariIni||[]).forEach(function(j){
+    var ket={nanti:'Dibuka otomatis pukul '+mundur(j.mulai,d.bukaLebihAwal),berlangsung:'Sedang berlangsung',selesai:'Selesai',libur:'Diliburkan hari ini',terlewat:'Lewat, tidak ada pertemuan'}[j.status];
+    var aksi=null;
+    if(j.kode) aksi=h('button',{type:'button',class:'btn small',onclick:function(){bukaSesi(j.kode,'dasbor');}},'Kelola');
+    else if(j.status==='nanti') aksi=h('button',{type:'button',class:'btn small',onclick:function(e){ libur(j,false,e.currentTarget); }},'Liburkan');
+    else if(j.status==='libur'&&!lewat(j.selesai)) aksi=h('button',{type:'button',class:'btn small',onclick:function(e){ libur(j,true,e.currentTarget); }},'Batalkan libur');
+    jd.appendChild(h('li',null,h('div',{class:'who'},h('span',{class:'nm'},j.kelas+' · '+j.mulai+'–'+j.selesai),h('span',{class:'meta'},ket)),
+      h('div',{class:'actions'},j.status==='berlangsung'?h('span',{class:'chip ok'},'Dibuka'):null,aksi)));
+  });
+  $('#dJadwalInfo').textContent=(d.jadwalHariIni||[]).length?'Absensi terjadwal dibuka '+d.bukaLebihAwal+' menit sebelum jam mulai dan ditutup pada jam selesai. Liburkan bila hari ini tidak ada kelas.':'';
   var ul=$('#dSesi'); ul.textContent='';
   if(!d.sesi.length) ul.appendChild(h('li',{class:'empty'},'Belum ada pertemuan yang dibuka hari ini.'));
   d.sesi.forEach(function(s){
     ul.appendChild(h('li',null,
-      h('div',{class:'who'},h('span',{class:'nm'},s.kelas+', pertemuan ke-'+s.ke),h('span',{class:'meta'},s.hadir+' dari '+s.total+' hadir')),
-      h('div',{class:'actions'},h('span',{class:'chip '+(s.status==='buka'?'ok':'off')},s.status==='buka'?'Dibuka':'Ditutup'),
+      h('div',{class:'who'},h('span',{class:'nm'},s.kelas+', pertemuan ke-'+s.ke),h('span',{class:'meta'},(s.jamMulai?s.jamMulai+(s.jamSelesai?'–'+s.jamSelesai:'')+' · ':'')+s.hadir+' dari '+s.total+' hadir'+(s.sumber==='jadwal'?' · terjadwal':''))),
+      h('div',{class:'actions'},h('span',{class:'chip '+(s.buka?'ok':'off')},s.buka?'Dibuka':(s.status==='buka'?'Selesai':'Ditutup')),
         h('button',{type:'button',class:'btn small',onclick:function(){bukaSesi(s.kode,'dasbor');}},'Kelola'))));
   });
+}
+function mundur(jam,menit){ var p=jam.split('.'),t=Number(p[0])*60+Number(p[1])-menit; if(t<0) t=0; return ('0'+Math.floor(t/60)).slice(-2)+'.'+('0'+(t%60)).slice(-2); }
+function lewat(jam){ var n=new Date(),p=jam.split('.'); return n.getHours()*60+n.getMinutes()>Number(p[0])*60+Number(p[1]); }
+async function libur(j,batal,btn){
+  if(!batal&&!window.confirm('Liburkan '+j.kelas+' pukul '+j.mulai+' hari ini? Absensi tidak akan dibuka otomatis.')) return;
+  await kerja(btn,async function(){ var r=await g('liburkan',j.kelasId,T.d.hariIni,j.mulai,batal); if(!hasilOk(r)) return; toast(batal?'Libur dibatalkan.':'Jadwal hari ini diliburkan.'); await muatDasbor(); renderDasbor(); });
 }
 $('#dBuka').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
   var id=$('#dKelas').value; if(!id) return;
@@ -638,15 +666,15 @@ async function muatSesi(diam){
 }
 function renderSesi(){
   var d=T.sesi; if(!d) return; var s=d.sesi;
-  d.tautan=location.origin+location.pathname+'?p='+s.kode;
+  d.tautan=location.origin+location.pathname+(d.kodeKelas?'?k='+d.kodeKelas:'?p='+s.kode);
   $('#sJudul').textContent=s.kelas+', pertemuan ke-'+s.ke;
   $('#sSub').textContent=tglPanjang(s.tanggal)+(s.jamMulai?' · pukul '+s.jamMulai+(s.jamSelesai?'–'+s.jamSelesai:''):'');
-  var chip=$('#sChip'); chip.textContent=s.buka?'Dibuka':(s.status==='buka'?'Sudah lewat hari':'Ditutup'); chip.className='chip '+(s.buka?'ok':'off');
+  var chip=$('#sChip'); chip.textContent=s.buka?'Dibuka':(s.status==='buka'?(s.hariIni?'Lewat jam selesai':'Sudah lewat hari'):'Ditutup'); chip.className='chip '+(s.buka?'ok':'off');
   $('#sBagi').hidden=!s.buka;
   if(s.buka){
     var inp=$('#sTautan'); if(inp.value!==d.tautan) inp.value=d.tautan;
     $('#sLokasi').textContent=d.lokasi&&d.lokasi.wajib?'Absen lewat tautan hanya diterima dalam radius '+d.lokasi.radius+' m dari '+d.lokasi.tempat.join(' atau ')+'.':'Lokasi absen belum diatur, jadi tautan bisa dipakai dari mana saja. Atur di menu Akun.';
-    $('#sWa').href='https://wa.me/?text='+encodeURIComponent('Absensi '+s.kelas+' pertemuan ke-'+s.ke+', '+tglPanjang(s.tanggal)+'. Buka tautan ini lalu pindai wajah Anda'+(d.lokasi&&d.lokasi.wajib?' di '+d.lokasi.tempat.join(' / '):'')+': '+d.tautan);
+    $('#sWa').href='https://wa.me/?text='+encodeURIComponent('Tautan absensi wajah kelas '+s.kelas+'. Simpan tautan ini dan buka setiap jam pelajaran, lalu pindai wajah Anda'+(d.lokasi&&d.lokasi.wajib?' di '+d.lokasi.tempat.join(' / '):'')+': '+d.tautan);
   }
   var gk=$('#sGuru'); gk.textContent='';
   gk.appendChild(h('span',{class:'field'},'Absen pendidik'));
@@ -676,6 +704,8 @@ function renderSesi(){
       h('div',{class:'seg',role:'group','aria-label':'Status '+m.nama},Object.keys(ST).map(function(c){return h('button',{type:'button',class:'st st-'+c,'aria-pressed':String(st===c),'aria-label':ST[c],'data-id':m.id,'data-st':c},c);}))));
   });
   $('#sTutup').textContent=s.status==='buka'?'Tutup pertemuan':'Buka lagi';
+  $('#sOtomatis').hidden=!(s.sumber==='jadwal'&&s.status==='buka');
+  $('#sOtomatis').textContent='Pertemuan terjadwal ini ditutup otomatis pukul '+s.jamSelesai+(d.alpaOtomatis?'; anggota yang belum absen ditandai Alpa.':'.');
   $('#sTutup').hidden=s.status!=='buka'&&!s.hariIni;
   $('#sAlpaLabel').hidden=s.status!=='buka';
 }
@@ -702,6 +732,11 @@ $('#sUbah').addEventListener('click',function(){
     }); }},'Simpan'))));
 });
 $('#sKembali').addEventListener('click',function(){ kerja(null,async function(){ var asal=T.asal; T.kode=null; T.sesi=null; tab(asal); if(asal==='dasbor'){ await muatDasbor(); renderDasbor(); } }); });
+function salinInput(inp){
+  var ok=function(){toast('Tautan disalin. Tempel di grup kelas.');};
+  function cadangan(){ inp.focus(); inp.select(); try{ if(document.execCommand('copy')) ok(); else toast('Tekan lama tautan untuk menyalin.'); }catch(e){ toast('Tekan lama tautan untuk menyalin.'); } }
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(ok,cadangan); else cadangan(); }catch(e){ cadangan(); }
+}
 $('#sSalin').addEventListener('click',function(){
   var inp=$('#sTautan'),ok=function(){toast('Tautan disalin. Tempel di grup kelas.');};
   function cadangan(){ inp.focus(); inp.select(); try{ if(document.execCommand('copy')) ok(); else toast('Tekan lama tautan untuk menyalin.'); }catch(e){ toast('Tekan lama tautan untuk menyalin.'); } }
@@ -744,7 +779,7 @@ function kelasTerpilih(){ var id=$('#aKelas').value; return T.d.kelas.filter(fun
 async function muatAnggota(){
   var sel=$('#aKelas'),lama=sel.value||lsGet('absen.kelas')||'';
   isiPilihan(sel,T.d.kelas.length?pilihanKelas():[{nilai:'',nama:'Belum ada kelas'}],lama);
-  $('#aUbahKelas').disabled=!T.d.kelas.length; $('#aTambah').disabled=!T.d.kelas.length;
+  $('#aUbahKelas').disabled=!T.d.kelas.length; $('#aJadwal').disabled=!T.d.kelas.length; $('#aTambah').disabled=!T.d.kelas.length;
   T.anggota=[]; renderAnggota(true);
   if(!sel.value) { renderAnggota(false); return; }
   await kerja(null,async function(){ var id=sel.value,r=await g('daftarAnggota',id); if(r&&r.ok&&$('#aKelas').value===id){ T.anggota=r.anggota; renderAnggota(false); } });
@@ -802,6 +837,53 @@ $('#aKelasBaru').addEventListener('click',function(){
       tutupLembar(); lsSet('absen.kelas',r.id); await muatDasbor(); $('#aKelas').value=''; await muatAnggota(); toast('Kelas dibuat.');
     }); }},'Buat kelas'))));
 });
+var HARI=['','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'];
+$('#aJadwal').addEventListener('click',function(e){ kerja(e.currentTarget,async function(){
+  var k=kelasTerpilih(); if(!k) return;
+  var r=await g('jadwalKelas',k.id); if(!hasilOk(r)) return;
+  var slot=r.slot.slice(),kode=r.kode;
+  function url(){ return location.origin+location.pathname+'?k='+kode; }
+  var inp=h('input',{id:'edTautan',type:'text',readonly:true,value:url(),'aria-label':'Tautan tetap kelas'});
+  var wa=h('a',{class:'btn',target:'_blank',rel:'noopener'},'Kirim lewat WhatsApp');
+  function perbaruiWa(){ wa.href='https://wa.me/?text='+encodeURIComponent('Tautan absensi wajah kelas '+k.nama+'. Simpan tautan ini; absensi terbuka otomatis sesuai jadwal'+(slot.length?' ('+slot.map(function(s){return HARI[s.hari]+' '+s.mulai+'–'+s.selesai;}).join(', ')+')':'')+'. Buka tautan lalu pindai wajah Anda: '+url()); }
+  var daftar=h('ul',{class:'plain'});
+  function renderSlot(){
+    daftar.textContent='';
+    if(!slot.length) daftar.appendChild(h('li',{class:'empty'},'Belum ada jadwal. Tambahkan hari dan jam pelajaran di bawah.'));
+    slot.forEach(function(s,i){ daftar.appendChild(h('li',null,h('span',{class:'nm'},HARI[s.hari]+', '+s.mulai+'–'+s.selesai),
+      h('button',{type:'button',class:'btn small danger',onclick:function(){ slot.splice(i,1); renderSlot(); perbaruiWa(); }},'Hapus'))); });
+  }
+  var hari=h('select',{id:'edHari'},HARI.slice(1).map(function(n,i){return h('option',{value:String(i+1)},n);}));
+  var mulai=h('input',{id:'edJMulai',type:'time',value:'08:00'}),selesai=h('input',{id:'edJSelesai',type:'time',value:'09:30'});
+  var alpa=h('input',{type:'checkbox',id:'edAlpa',checked:r.alpa});
+  var info=h('p',{class:'hint'},r.berikut?'Absensi berikutnya: '+r.berikut+'.':'');
+  renderSlot(); perbaruiWa();
+  bukaLembar('Jadwal & tautan tetap · '+k.nama,h('div',{class:'view'},
+    h('h2',null,'Tautan tetap kelas'),
+    h('div',{class:'inline'},inp,h('button',{type:'button',class:'btn primary',onclick:function(){ salinInput(inp); }},'Salin')),
+    h('div',{class:'actions'},wa,h('button',{type:'button',class:'btn',onclick:function(ev){
+      if(!window.confirm('Ganti tautan tetap '+k.nama+'? Tautan lama tidak bisa dipakai lagi, jadi tautan baru perlu dibagikan ulang.')) return;
+      kerja(ev.currentTarget,async function(){ var x=await g('gantiTautan',k.id); if(!hasilOk(x)) return; kode=x.kode; inp.value=url(); perbaruiWa(); toast('Tautan baru dibuat. Bagikan ulang ke anggota.'); });
+    }},'Ganti tautan')),
+    h('p',{class:'hint'},'Bagikan sekali saja, misalnya disematkan di grup kelas. Saat ada pertemuan yang dibuka, tautan ini langsung membuka kamera absen; di luar jam itu anggota melihat jadwal berikutnya.'),
+    h('h2',null,'Jadwal mingguan'),
+    daftar,
+    h('div',{class:'slotbaru'},h('label',{for:'edHari'},'Hari',hari),h('label',{for:'edJMulai'},'Mulai',mulai),h('label',{for:'edJSelesai'},'Selesai',selesai)),
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn',onclick:function(){
+      var m=mulai.value.replace(':','.'),s=selesai.value.replace(':','.');
+      if(!m||!s){ toast('Isi jam mulai dan jam selesai.'); return; }
+      if(s<=m){ toast('Jam selesai harus setelah jam mulai.'); return; }
+      slot.push({hari:Number(hari.value),mulai:m,selesai:s});
+      slot.sort(function(a,b){return a.hari-b.hari||(a.mulai<b.mulai?-1:1);}); renderSlot(); perbaruiWa();
+    }},'Tambah ke jadwal')),
+    h('label',{class:'check',for:'edAlpa'},alpa,'Saat jam selesai, tandai anggota yang belum absen sebagai Alpa'),
+    h('p',{class:'hint'},'Absensi dibuka otomatis 15 menit sebelum jam mulai dan ditutup pada jam selesai. Hari libur bisa diliburkan dari Dasbor.'),
+    info,
+    h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(ev){ kerja(ev.currentTarget,async function(){
+      var x=await g('simpanJadwal',k.id,slot,alpa.checked); if(!hasilOk(x)) return;
+      tutupLembar(); toast(x.berikut?'Jadwal disimpan. Absensi berikutnya: '+x.berikut+'.':'Jadwal disimpan.'); await muatDasbor();
+    }); }},'Simpan jadwal'))));
+}); });
 $('#aUbahKelas').addEventListener('click',function(){
   var k=kelasTerpilih(); if(!k) return;
   var nama=h('input',{id:'edKelas',type:'text',maxlength:'40',value:k.nama}),daftarLok=T.d.lokasi||[];
@@ -958,11 +1040,25 @@ function perangkat(){
   }
   return id;
 }
-async function mulaiSiswa(kode){
-  M.kode=kode; layar('layarSiswa'); pesanAnggota('Memuat pertemuan','');
+var tungguTimer=null;
+async function mulaiSiswa(kode,jenis,diam){
+  clearTimeout(tungguTimer);
+  M.kode=kode; layar('layarSiswa'); if(!diam) pesanAnggota('Memuat absensi','');
   var r;
-  try{ r=await api('infoPertemuan',kode); }catch(e){ pesanAnggota('Server belum bisa dijangkau','Periksa internet, lalu muat ulang halaman ini.'); return; }
+  try{ r=await api(jenis==='kelas'?'infoKelas':'infoPertemuan',kode); }catch(e){ if(!diam) pesanAnggota('Server belum bisa dijangkau','Periksa internet, lalu muat ulang halaman ini.'); return; }
   if(!r||!r.ok){ pesanAnggota('Tautan tidak bisa dipakai',(r&&r.pesan)||'Minta tautan baru ke pendidik.'); return; }
+  if(r.tutup){
+    $('#mKelas').textContent='Absensi '+r.kelas;
+    $('#mSub').textContent=[r.pendidik?'Pendidik: '+r.pendidik:'',r.sekolah].filter(Boolean).join(' · ');
+    var p=$('#mPesan'); p.textContent=''; p.hidden=false;
+    p.appendChild(h('h2',null,'Absensi belum dibuka'));
+    p.appendChild(h('p',{class:'hint'},r.berikut?'Absensi berikutnya: '+r.berikut+'. Halaman ini dibuka otomatis 15 menit sebelum jam mulai; Anda bisa membiarkannya terbuka.':'Belum ada absensi yang dibuka. Tunggu pendidik membuka pertemuan.'));
+    if(r.jadwal&&r.jadwal.length){ p.appendChild(h('span',{class:'field'},'Jadwal kelas')); p.appendChild(h('ul',{class:'plain'},r.jadwal.map(function(t){return h('li',null,h('span',{class:'nm'},t));}))); }
+    p.appendChild(h('div',{class:'actions'},h('button',{type:'button',class:'btn primary',onclick:function(){ mulaiSiswa(kode,jenis); }},'Periksa lagi')));
+    tungguTimer=setTimeout(function cek(){ if(!document.hidden) mulaiSiswa(kode,jenis,true); else tungguTimer=setTimeout(cek,60000); },60000);
+    return;
+  }
+  M.kode=r.sesi.kode;
   M.info=r;
   $('#mKelas').textContent='Absensi '+r.sesi.kelas;
   $('#mSub').textContent=['Pertemuan ke-'+r.sesi.ke,tglPanjang(r.sesi.tanggal)+(r.sesi.jamMulai?', pukul '+r.sesi.jamMulai+(r.sesi.jamSelesai?'–'+r.sesi.jamSelesai:''):''),r.pendidik?'Pendidik: '+r.pendidik:'',r.sekolah].filter(Boolean).join(' · ');
@@ -1026,10 +1122,10 @@ function mulai(){
       h('p',{class:'hint'},'Buka index.html, cari baris var API_URL, lalu tempel URL aplikasi web Apps Script yang berakhiran /exec.')));
     return;
   }
-  var p='';
-  try{ p=new URLSearchParams(location.search).get('p')||''; }catch(e){}
-  p=p.trim().toUpperCase();
-  if(p) mulaiSiswa(p); else mulaiGuru();
+  var p='',k='';
+  try{ var q=new URLSearchParams(location.search); p=q.get('p')||''; k=q.get('k')||''; }catch(e){}
+  p=p.trim().toUpperCase(); k=k.trim().toUpperCase();
+  if(k) mulaiSiswa(k,'kelas'); else if(p) mulaiSiswa(p,'sesi'); else mulaiGuru();
 }
 mulai();
 })();
